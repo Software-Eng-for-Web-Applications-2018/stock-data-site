@@ -5,7 +5,7 @@ from plotly_app import app
 import argparse
 import dash_core_components as dcc
 import dash_html_components as html
-#from dashboards import (user_dash, business_dash)
+from dashboards import realtime_dash
 
 
 app.layout = html.Div([
@@ -18,9 +18,8 @@ app.layout = html.Div([
               [Input('url', 'pathname')])
 def display_page(pathname):
     # Add routes to new dashboards here
-    if pathname == '/home/':
-        #return user_dash.layout
-        return '<b>HOME</b>'
+    if pathname == '/realtimeportal/':
+        return realtime_dash.layout
     else:
         return "404"
 

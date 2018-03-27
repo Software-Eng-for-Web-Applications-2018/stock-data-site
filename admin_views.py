@@ -1,5 +1,6 @@
 from app import db
 from models import (StockPriceDay, StockPriceMinute, User)
+from views.dash_view import DashView
 from views.home_view import HomeView
 from views.login_view import LoginView
 from views.logout_view import LogoutView
@@ -12,11 +13,11 @@ def add_admin_views(admin, app):
     admin.add_view(HomeView(name='Home', endpoint='home'))
 
     # User dash view handling
-    #admin.add_view(RealtimeDashView(
-    #    name='Realtime Portal',
-    #    endpoint='realtimeportal',
-    #    app=app
-    #))
+    admin.add_view(DashView(
+        name='Real-Time Portal',
+        endpoint='realtimeportal',
+        app=app
+    ))
 
     # Model view handling
     admin.add_view(StockPriceView(

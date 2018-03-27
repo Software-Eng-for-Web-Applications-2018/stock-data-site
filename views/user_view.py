@@ -9,8 +9,8 @@ class UserView(SecureModelView):
     can_delete = True
 
     column_list = (
-        'id', 'username', 'email', 'password', 'user_group', 'active',
-        'birthday', 'gender', 'weight', 'height', 'last_login'
+        'id', 'email', 'password', 'user_group',
+        'active', 'birth_date', 'last_login_date'
     )
     column_searchable_list = ('id', 'email')
     column_filters = column_list

@@ -1,11 +1,10 @@
-import argparse
+from admin_views import add_admin_views
 from app import admin
-# from admin_views import add_admin_views
-
 from dash.dependencies import (Input, Output)
+from plotly_app import app
+import argparse
 import dash_core_components as dcc
 import dash_html_components as html
-from plotly_app import app
 #from dashboards import (user_dash, business_dash)
 
 
@@ -32,6 +31,6 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true', default=False)
     args = parser.parse_args()
     
-    #with app.server.app_context():
-    #    add_admin_views(admin, app)
+    with app.server.app_context():
+        add_admin_views(admin, app)
 app.run_server(host='0.0.0.0', port=args.port, debug=args.debug)

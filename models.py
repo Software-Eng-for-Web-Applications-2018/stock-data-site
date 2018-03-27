@@ -41,7 +41,7 @@ class StockPriceDay(db.Model):
     volume = db.Column(db.Float)
     close = db.Column(db.Float)
     high = db.Column(db.Float)
-    _open = db.Column(db.Float)
+    _open = db.Column('open', db.Float)
     low = db.Column(db.Float)
 
 
@@ -54,5 +54,5 @@ class StockPriceMinute(db.Model):
     volume = db.Column(db.Float)
     close = db.Column(db.Float)
     high = db.Column(db.Float)
-    _open = db.Column(db.Float)
+    _open = db.Column('open', db.Float)
     low = db.Column(db.Float)

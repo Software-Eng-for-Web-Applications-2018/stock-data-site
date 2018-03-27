@@ -2,7 +2,7 @@ from app import db
 from dash.dependencies import (Input, Output, State, Event)
 from flask_security import (Security, SQLAlchemyUserDatastore, UserMixin,
     RoleMixin, current_user, login_required)
-from models import StockPriceMinute
+from models import StockPriceDay
 from plotly import graph_objs as go
 from plotly.graph_objs import *
 from plotly_app import app
@@ -28,22 +28,22 @@ with app.server.app_context():
     
     layout = html.Div([
         html.Div([
-            html.H1('Real-Time Prediction Portal'),
+            html.H1('Historical Prediction Portal'),
             html.Div([
                 dcc.Dropdown(
-                    id='rt-trend-type-dropdown',
+                    id='hist-trend-type-dropdown',
                     options=[{'label': label, 'value': value}
                              for label, value in trend_type_options],
                     value=trend_type_options[0][1]
                 ),
                 dcc.Dropdown(
-                    id='rt-trend-sym-dropdown',
+                    id='hist-trend-sym-dropdown',
                     options=[{'label': label, 'value': value}
                              for label, value in trend_sym_options],
                     value=trend_sym_options[0][1]
                 ),
                 dcc.Graph(
-                    id='rt-stock-trend-graph',
+                    id='hist-stock-trend-graph',
                     style={
                         'max-height': '300px'
                     }
@@ -52,9 +52,9 @@ with app.server.app_context():
         ], className="container")
     ], style={'padding-bottom': '20px'})
 
-    @app.callback(Output("rt-stock-trend-graph", "figure"),
-                  [Input('rt-trend-type-dropdown', 'value'),
-                   Input('rt-trend-sym-dropdown', 'value')])
+    @app.callback(Output("hist-stock-trend-graph", "figure"),
+                  [Input('hist-trend-type-dropdown', 'value'),
+                   Input('hist-trend-sym-dropdown', 'value')])
     def update_trend(*args):
         try:
             xs, ys = [0, 1, 2], [0, 1, 2]

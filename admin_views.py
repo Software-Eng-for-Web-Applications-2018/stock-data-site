@@ -18,6 +18,11 @@ def add_admin_views(admin, app):
         endpoint='realtimeportal',
         app=app
     ))
+    admin.add_view(DashView(
+        name='Historical Portal',
+        endpoint='historicalportal',
+        app=app
+    ))
 
     # Model view handling
     admin.add_view(StockPriceView(

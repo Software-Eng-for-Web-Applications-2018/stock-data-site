@@ -25,14 +25,34 @@ class User(db.Model):
     def get_id(self):
         return self.id
 
-    def BMI(self):
-        if self.height is not None and self.weight is not None:
-            return 703 * float(self.weight) / float(self.height ** 2)
-        else:
-            return None
-
     def is_anonymous(self):
         return False
 
     def has_role(self, role):
         return self.user_group == role
+
+
+class StockPriceDay(db.Model):
+
+    __tablename__ = 'stock_price_day'
+
+    dateid = db.Column(db.Date, primary_key=True)
+    sym = db.Column(db.String(5), primary_key=True)
+    volume = db.Column(db.Float)
+    close = db.Column(db.Float)
+    high = db.Column(db.Float)
+    _open = db.Column(db.Float)
+    low = db.Column(db.Float)
+
+
+class StockPriceMinute(db.Model):
+
+    __tablename__ = 'stock_price_minute'
+
+    dateid = db.Column(db.DateTime, primary_key=True)
+    sym = db.Column(db.String(5), primary_key=True)
+    volume = db.Column(db.Float)
+    close = db.Column(db.Float)
+    high = db.Column(db.Float)
+    _open = db.Column(db.Float)
+    low = db.Column(db.Float)

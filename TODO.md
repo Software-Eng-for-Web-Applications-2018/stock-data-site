@@ -1,8 +1,6 @@
 # TODO (Stock Data Prediction)
 
-## App Config Layout
-
-## App Layouts
+## Dashboards
 
 ### Modules
 I recommend starting with the historical dashboard first since the realtime we

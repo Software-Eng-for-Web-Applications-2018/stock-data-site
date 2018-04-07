@@ -12,6 +12,7 @@ import dash_html_components as html
 import datetime
 import numpy as np
 import plotly.plotly as py
+#from orderedset import OrderedSet
 
 
 with app.server.app_context():
@@ -21,10 +22,34 @@ with app.server.app_context():
         ('Close', 'close')
     )
     # TODO: Query from available options
-    trend_sym_options = (
-        ('AMD', 'AMD'),
-        ('GOOGL', 'GOOGL')
-    )
+    def GetStockSymbols():
+        # pull the stock infor from the database --- HIGHLY inefficient way to do this but, very easy to write and I don't have time to go into depth with flask-sql. 
+        StockInfoObjectList = StockPriceDay.query.all(); # change Query!!!!  Need distant or return unique values.
+
+
+        #GET UNIQUE 
+        # loop over all objects returned and use a set to filter for unique values-- Should be filtered in query! COmmunications cost could slow this down quite badly. 
+        StockSymOrderedSet = set();
+        for StockInfoObject in StockInfoObjectList:
+            StockSymOrderedSet.add(StockInfoObject.sym);
+
+        #print(StockSymOrderedSet);
+        # just get it in the correct format
+        StockSymlist = [];
+        for StockSymbol in StockSymOrderedSet:
+            StockSet = (StockSymbol,StockSymbol);
+            StockSymlist.append(StockSet);
+
+        return tuple(StockSymlist);
+
+    #print(tuple(StockSymlist));
+
+    # trend_sym_options = ( 
+    #     ('AMD', 'AMD'),
+    #     ('GOOGL', 'GOOGL')
+    # )
+
+    trend_sym_options = GetStockSymbols();
     
     layout = html.Div([
         html.Div([

@@ -19,7 +19,10 @@ with app.server.app_context():
     # Label and value pairs for dropdown
     trend_type_options = (
         ('Volume', 'volume'),
-        ('Close', 'close')
+        ('Close', 'close'),
+        ('High', 'high'), 
+        ('Open', '_open'), 
+        ('Low', 'low')
     )
     # TODO: Query from available options
     def GetStockSymbols():
@@ -27,7 +30,8 @@ with app.server.app_context():
         StockInfoObjectList = StockPriceDay.query.all(); # change Query!!!!  Need distant or return unique values.
 
 
-        #GET UNIQUE 
+
+        # #GET UNIQUE 
         # loop over all objects returned and use a set to filter for unique values-- Should be filtered in query! COmmunications cost could slow this down quite badly. 
         StockSymOrderedSet = set();
         for StockInfoObject in StockInfoObjectList:
@@ -42,12 +46,41 @@ with app.server.app_context():
 
         return tuple(StockSymlist);
 
-    #print(tuple(StockSymlist));
 
-    # trend_sym_options = ( 
-    #     ('AMD', 'AMD'),
-    #     ('GOOGL', 'GOOGL')
-    # )
+    def GetStockDataBySymbol(Datatype,Symbol):
+        StockInfoObjectList = StockPriceDay.query.filter_by(sym = Symbol);  # probably could chain filters together
+        # print(StockInfoObjectList[0]);
+        # print(StockInfoObjectList[0].dateid);
+        # print(StockInfoObjectList[0].volume);
+
+        Dates = [];
+        Data = [];
+
+        if(Datatype == 'volume'):
+            for Record in  StockInfoObjectList:
+                Dates.append(Record.dateid);
+                Data.append(Record.volume);
+        elif(Datatype == 'close'):
+            for Record in  StockInfoObjectList:
+                Dates.append(Record.dateid);
+                Data.append(Record.volume);
+        elif(Datatype == 'high'):
+            for Record in  StockInfoObjectList:
+                Dates.append(Record.dateid);
+                Data.append(Record.high);
+        elif(Datatype == '_open'):
+            for Record in  StockInfoObjectList:
+                Dates.append(Record.dateid);
+                Data.append(Record._open);
+        elif(Datatype == 'low'):
+            for Record in  StockInfoObjectList:
+                Dates.append(Record.dateid);
+                Data.append(Record.low);
+        else:
+            print('Error!');
+
+
+        return (Dates,Data);
 
     trend_sym_options = GetStockSymbols();
     
@@ -81,8 +114,13 @@ with app.server.app_context():
                   [Input('hist-trend-type-dropdown', 'value'),
                    Input('hist-trend-sym-dropdown', 'value')])
     def update_trend(*args):
+        #('type','sym')
+        #print(args);
+        TrendData = GetStockDataBySymbol(args[0],args[1]);
+
         try:
-            xs, ys = [0, 1, 2], [0, 1, 2]
+            xs = TrendData[0];
+            ys = TrendData[1];
         except Exception as e:
             # Debug print and return data not found message
             print(e.message)

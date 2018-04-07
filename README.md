@@ -7,7 +7,10 @@ Dashboard for predicted stock values.
 ### Pip
 
 #### Linux
-`apt-get install pip3`
+	sudo apt-get -y install python3-pip
+	sudo apt-get install libmysqlclient-dev python-dev
+
+Above commands included in Ubuntu_Install_Depends.sh
 
 #### Windows
 - I recommend using Anaconda for Python 3 or Cygwin

@@ -63,7 +63,7 @@ with app.server.app_context():
         elif(Datatype == 'close'):
             for Record in  StockInfoObjectList:
                 Dates.append(Record.dateid);
-                Data.append(Record.volume);
+                Data.append(Record.close);
         elif(Datatype == 'high'):
             for Record in  StockInfoObjectList:
                 Dates.append(Record.dateid);
@@ -110,9 +110,8 @@ with app.server.app_context():
         ], className="container")
     ], style={'padding-bottom': '20px'})
 
-    @app.callback(Output("hist-stock-trend-graph", "figure"),
-                  [Input('hist-trend-type-dropdown', 'value'),
-                   Input('hist-trend-sym-dropdown', 'value')])
+    @app.callback(Output("hist-stock-trend-graph", "figure"),[Input('hist-trend-type-dropdown', 'value'),Input('hist-trend-sym-dropdown', 'value')])
+
     def update_trend(*args):
         #('type','sym')
         #print(args);
@@ -131,5 +130,5 @@ with app.server.app_context():
                 'x': xs,
                 'y': ys
             }],
-            'layout': {'margin': {'l': 40, 'r': 0, 't': 20, 'b': 30}}
+            'layout': {'margin': {'l': 40, 'r': 0, 't': 20, 'b': 30} }
         }

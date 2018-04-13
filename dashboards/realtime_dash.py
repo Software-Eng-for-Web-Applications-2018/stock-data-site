@@ -14,13 +14,18 @@ import numpy as np
 import plotly.plotly as py
 from collections import deque
 
-from models import StockPriceDay
+from models import StockPriceMinute
 
+
+
+#Need an inital populate function 
 X=deque(maxlen=20)
 Y=deque(maxlen=20)
 X.append(1)
 Y.append(1)
 
+#based upon  https://www.youtube.com/watch?v=37Zj955LFT0 
+#https://pythonprogramming.net/live-graphs-data-visualization-application-dash-python-tutorial/
 
 with app.server.app_context():
     # Label and value pairs for dropdown
@@ -34,9 +39,7 @@ with app.server.app_context():
     # TODO: Query from available options
     def GetStockSymbols():
         # pull the stock infor from the database --- HIGHLY inefficient way to do this but, very easy to write and I don't have time to go into depth with flask-sql. 
-        StockInfoObjectList = StockPriceDay.query.all(); # change Query!!!!  Need distant or return unique values.
-
-
+        StockInfoObjectList = StockPriceMinute.query.all(); # change Query!!!!  Need distant or return unique values.
 
         # #GET UNIQUE 
         # loop over all objects returned and use a set to filter for unique values-- Should be filtered in query! COmmunications cost could slow this down quite badly. 
@@ -54,8 +57,13 @@ with app.server.app_context():
         return tuple(StockSymlist);
 
 
-    def GetStockDataBySymbol(Datatype,Symbol):
-        StockInfoObjectList = StockPriceDay.query.filter_by(sym = Symbol);  # probably could chain filters together
+    # if update is false all the records will be pulled. if update is true then only the last few elements will be pulled. 
+    def GetStockDataBySymbol(Datatype,Symbol,update):
+
+        if(update == True):
+            StockInfoObjectList = StockPriceMinute.query.filter_by(sym = Symbol).first();  # probably could chain filters together
+        else:
+            StockInfoObjectList = StockPriceMinute.query.filter_by(sym = Symbol);  # probably could chain filters together
         # print(StockInfoObjectList[0]);
         # print(StockInfoObjectList[0].dateid);
         # print(StockInfoObjectList[0].volume);
@@ -70,7 +78,7 @@ with app.server.app_context():
         elif(Datatype == 'close'):
             for Record in  StockInfoObjectList:
                 Dates.append(Record.dateid);
-                Data.append(Record.volume);
+                Data.append(Record.close);
         elif(Datatype == 'high'):
             for Record in  StockInfoObjectList:
                 Dates.append(Record.dateid);
@@ -88,6 +96,7 @@ with app.server.app_context():
 
 
         return (Dates,Data);
+
 
     trend_sym_options = GetStockSymbols();
     
@@ -118,13 +127,13 @@ with app.server.app_context():
         ], className="container")
     ], style={'padding-bottom': '20px'})
 
-    @app.callback(Output("rt-stock-trend-graph", "figure"),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value'),Event('graph-update','interval')])
+    @app.callback(Output("rt-stock-trend-graph", "figure"),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value')])  #,Event('graph-update','interval')])
 
 
     def update_trend(*args):
         #('type','sym')
         #print(args);
-        TrendData = GetStockDataBySymbol(args[0],args[1]);
+        TrendData = GetStockDataBySymbol(args[0],args[1],False);
 
         try:
             xs = TrendData[0];
@@ -139,7 +148,7 @@ with app.server.app_context():
                 'x': xs,
                 'y': ys
             }],
-            'layout': go.Layout(xaxis = dict(range=[min(x),min(x)]),yaxis = dict(range=[min(y),min(y)]) )
+            'layout': go.Layout(xaxis = dict(range=[min(xs),max(xs)]),yaxis = dict(range=[min(ys),max(ys)]) )
         }
 
 

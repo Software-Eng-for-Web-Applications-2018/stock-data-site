@@ -15,14 +15,8 @@ import plotly.plotly as py
 from collections import deque
 
 from models import StockPriceMinute
+# from MenuTypeSymbolStore import MenuTypeSymbolStore
 
-
-
-#Need an inital populate function 
-X=deque(maxlen=20)
-Y=deque(maxlen=20)
-X.append(1)
-Y.append(1)
 
 #based upon  https://www.youtube.com/watch?v=37Zj955LFT0 
 #https://pythonprogramming.net/live-graphs-data-visualization-application-dash-python-tutorial/
@@ -72,9 +66,13 @@ with app.server.app_context():
         Data = [];
 
         if(Datatype == 'volume'):
-            for Record in  StockInfoObjectList:
-                Dates.append(Record.dateid);
-                Data.append(Record.volume);
+            if(update == True):
+                Dates.append(StockInfoObjectList.dateid);
+                Data.append(StockInfoObjectList.volume);
+            else:
+                for Record in StockInfoObjectList:
+                    Dates.append(Record.dateid);
+                    Data.append(Record.volume);
         elif(Datatype == 'close'):
             for Record in  StockInfoObjectList:
                 Dates.append(Record.dateid);
@@ -99,6 +97,19 @@ with app.server.app_context():
 
 
     trend_sym_options = GetStockSymbols();
+
+    # THIS CANNOT BE THE RIGHT OR CLEAN WAY TO DO THIS   FIXME!
+    CurrentType='volume';
+    CurrentSymbol= trend_sym_options[0][1];
+    InitValues = GetStockDataBySymbol(CurrentType,CurrentSymbol,False);
+
+    #Need an inital populate function 
+    X=deque(maxlen=len(InitValues[0]))
+    Y=deque(maxlen=len(InitValues[1]))
+
+    #populate the init values 
+    X.extend(InitValues[0])
+    Y.extend(InitValues[1])
     
     layout = html.Div([
         html.Div([
@@ -122,22 +133,37 @@ with app.server.app_context():
                         'max-height': '300px'
                     }
                 ),
-                dcc.Interval(id='graph-update', interval=60000)
+                dcc.Interval(id='graph-update', interval=10000)
             ]),
+            html.P(id='placeholder'),   # THIS IS A HACK! TO ALLOW US TO UPDATE VALUES ON A CALLBACK
         ], className="container")
     ], style={'padding-bottom': '20px'})
 
-    @app.callback(Output("rt-stock-trend-graph", "figure"),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value')])  #,Event('graph-update','interval')])
+
+    @app.callback(Output("placeholder", 'value'),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value')])  #,Event('graph-update','interval')])
+
+    def update_Menu(*args):
+        #('type','sym')
+        # MenuTypeSymbolStore.SetType(self,args[0]);
+        # MenuTypeSymbolStore.SetSymbol(self,args[1]);
+        CurrentType=args[0];
+        CurrentSymbol= args[1];
+
+        return 0;
+
+
+    @app.callback(Output("rt-stock-trend-graph", "figure"),events=[Event('graph-update', 'interval')]) #,Event('graph-update','interval')])
 
 
     def update_trend(*args):
         #('type','sym')
         #print(args);
-        TrendData = GetStockDataBySymbol(args[0],args[1],False);
+        TrendData = GetStockDataBySymbol(CurrentType,CurrentSymbol,True);
 
         try:
-            xs = TrendData[0];
-            ys = TrendData[1];
+            if(X[-1] != TrendData[0]): # check that we are not adding the same date to the end of the graph 
+                X.extend(TrendData[0]);
+                Y.extend(TrendData[1]);
         except Exception as e:
             # Debug print and return data not found message
             print(e.message)
@@ -145,10 +171,10 @@ with app.server.app_context():
     
         return {
             'data': [{
-                'x': xs,
-                'y': ys
+                'x': list(X),
+                'y': list(Y)
             }],
-            'layout': go.Layout(xaxis = dict(range=[min(xs),max(xs)]),yaxis = dict(range=[min(ys),max(ys)]) )
+            'layout': go.Layout(xaxis = dict(range=[min(X),max(X)]),yaxis = dict(range=[min(Y),max(Y)]) )
         }
 
 

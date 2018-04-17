@@ -20,6 +20,11 @@ from models import StockPriceMinute
 
 #based upon  https://www.youtube.com/watch?v=37Zj955LFT0 
 #https://pythonprogramming.net/live-graphs-data-visualization-application-dash-python-tutorial/
+# global CurrentType;
+# global CurrentSymbol;
+# global LastCurrentType;
+# global LastCurrentSymbol;
+
 
 with app.server.app_context():
     # Label and value pairs for dropdown
@@ -99,8 +104,11 @@ with app.server.app_context():
     trend_sym_options = GetStockSymbols();
 
     # THIS CANNOT BE THE RIGHT OR CLEAN WAY TO DO THIS   FIXME!
-    CurrentType='volume';
-    CurrentSymbol= trend_sym_options[0][1];
+    CurrentType ='volume';
+    LastCurrentType = CurrentType;
+
+    CurrentSymbol = trend_sym_options[0][1];
+    LastCurrentSymbol =  CurrentSymbol; 
     InitValues = GetStockDataBySymbol(CurrentType,CurrentSymbol,False);
 
     #Need an inital populate function 
@@ -146,24 +154,40 @@ with app.server.app_context():
         #('type','sym')
         # MenuTypeSymbolStore.SetType(self,args[0]);
         # MenuTypeSymbolStore.SetSymbol(self,args[1]);
+        print("Update_Menu Called");
         CurrentType=args[0];
         CurrentSymbol= args[1];
 
+        print("Current Type is :" + CurrentType);
+        print("Current Symbol is :" + CurrentSymbol);
+
         return 0;
 
-
+    #This is really what they suggest 
+    #https://dash.plot.ly/sharing-data-between-callbacks
     @app.callback(Output("rt-stock-trend-graph", "figure"),events=[Event('graph-update', 'interval')]) #,Event('graph-update','interval')])
 
 
     def update_trend(*args):
         #('type','sym')
-        #print(args);
-        TrendData = GetStockDataBySymbol(CurrentType,CurrentSymbol,True);
+        print(args);
 
         try:
-            if(X[-1] != TrendData[0]): # check that we are not adding the same date to the end of the graph 
-                X.extend(TrendData[0]);
-                Y.extend(TrendData[1]);
+
+            # if((CurrentType == LastCurrentType) and (CurrentSymbol == LastCurrentSymbol)): # same data, just extend 
+            #     TrendData = GetStockDataBySymbol(CurrentType,CurrentSymbol,True);
+            #     if(X[-1] != TrendData[0]): # check that we are not adding the same date to the end of the graph 
+            #         X.extend(TrendData[0]);
+            #         Y.extend(TrendData[1]);
+            # else:
+            X.clear();
+            Y.clear();
+            TrendData = GetStockDataBySymbol(CurrentType,CurrentSymbol,False); # New data 
+            X.extend(TrendData[0])
+            Y.extend(TrendData[1])
+            #LastCurrentType = CurrentType;
+            #LastCurrentSymbol =  CurrentSymbol; 
+
         except Exception as e:
             # Debug print and return data not found message
             print(e.message)

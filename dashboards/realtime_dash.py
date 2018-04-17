@@ -144,28 +144,29 @@ with app.server.app_context():
                 dcc.Interval(id='graph-update', interval=10000)
             ]),
             html.P(id='placeholder'),   # THIS IS A HACK! TO ALLOW US TO UPDATE VALUES ON A CALLBACK
+            html.Div(id='intermediate-value', style={'display': 'none'}),
         ], className="container")
     ], style={'padding-bottom': '20px'})
 
 
-    @app.callback(Output("placeholder", 'value'),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value')])  #,Event('graph-update','interval')])
+    # @app.callback(Output('intermediate-value', 'children'),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value')])  #,Event('graph-update','interval')])
 
-    def update_Menu(*args):
-        #('type','sym')
-        # MenuTypeSymbolStore.SetType(self,args[0]);
-        # MenuTypeSymbolStore.SetSymbol(self,args[1]);
-        print("Update_Menu Called");
-        CurrentType=args[0];
-        CurrentSymbol= args[1];
+    # def update_Menu(*args):
+    #     #('type','sym')
+    #     # MenuTypeSymbolStore.SetType(self,args[0]);
+    #     # MenuTypeSymbolStore.SetSymbol(self,args[1]);
+    #     print("Update_Menu Called");
+    #     #CurrentType=args[0];
+    #     #CurrentSymbol= args[1];
 
-        print("Current Type is :" + CurrentType);
-        print("Current Symbol is :" + CurrentSymbol);
+    #     #print("Current Type is :" + CurrentType);
+    #     #print("Current Symbol is :" + CurrentSymbol);
 
-        return 0;
+    #     return args.to_json();
 
     #This is really what they suggest 
     #https://dash.plot.ly/sharing-data-between-callbacks
-    @app.callback(Output("rt-stock-trend-graph", "figure"),events=[Event('graph-update', 'interval')]) #,Event('graph-update','interval')])
+    @app.callback(Output("rt-stock-trend-graph", "figure"),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value')],events=[Event('graph-update', 'interval')]) #,Event('graph-update','interval')])
 
 
     def update_trend(*args):
@@ -182,7 +183,7 @@ with app.server.app_context():
             # else:
             X.clear();
             Y.clear();
-            TrendData = GetStockDataBySymbol(CurrentType,CurrentSymbol,False); # New data 
+            TrendData = GetStockDataBySymbol(args[0],args[1],False); # New data 
             X.extend(TrendData[0])
             Y.extend(TrendData[1])
             #LastCurrentType = CurrentType;

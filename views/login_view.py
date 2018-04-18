@@ -1,3 +1,7 @@
+# written by: Kevin Pielacki
+# debugged by: Kevin Pielacki
+
+
 import datetime
 from app import db
 from flask import (request, url_for, redirect, flash, current_app)

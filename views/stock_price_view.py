@@ -1,3 +1,7 @@
+# written by: Kevin Pielacki
+# debugged by: Kevin Pielacki
+
+
 from flask_admin.contrib import sqla
 from secure_views import SecureModelView
 

@@ -1,3 +1,7 @@
+# written by: Kevin Pielacki
+# debugged by: Kevin Pielacki
+
+
 from app import db
 from models import (StockPriceDay, StockPriceMinute, User)
 from views.dash_view import DashView

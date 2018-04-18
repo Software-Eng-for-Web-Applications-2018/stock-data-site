@@ -1,3 +1,7 @@
+# written by: Kevin Pielacki
+# debugged by: Kevin Pielacki
+
+
 from app import (server, admin)
 import dash
 import dash_core_components as dcc

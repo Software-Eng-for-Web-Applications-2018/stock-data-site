@@ -1,3 +1,7 @@
+# written by: Kevin Pielacki
+# debugged by: Kevin Pielacki
+
+
 from flask import (g, current_app)
 from models import User
 from app import login_manager

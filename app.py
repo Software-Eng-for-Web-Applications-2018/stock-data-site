@@ -1,3 +1,7 @@
+# written by: Kevin Pielacki
+# debugged by: Kevin Pielacki
+
+
 import config
 from flask import (Flask, redirect)
 from flask_sqlalchemy import SQLAlchemy

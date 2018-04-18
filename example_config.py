@@ -1,3 +1,7 @@
+# written by: Kevin Pielacki
+# debugged by: Kevin Pielacki
+
+
 '''example_config.py
 
 Example config.py file containing sensitive information

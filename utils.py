@@ -15,7 +15,7 @@ def generate_table(dataframe, max_rows=10):
         DCC Table: HTML table of DataFrame
     '''
     return html.Table(
-        [html.Tr([html.Th(col) for col in dataframe.columns])] +
+        [html.Tr([html.Th(col, style={'width': '100px'}) for col in dataframe.columns])] +
         [html.Tr([
             html.Td(dataframe.iloc[i][col]) for col in dataframe.columns
         ]) for i in range(min(len(dataframe), max_rows))],

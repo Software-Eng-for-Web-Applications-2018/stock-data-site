@@ -25,6 +25,9 @@ import plotly.plotly as py
 # global LastCurrentType;
 # global LastCurrentSymbol;
 
+def money_format(val):
+    return '${0:.2f}'.format(round(val, 2))
+
 
 with app.server.app_context():
     # Label and value pairs for dropdown
@@ -246,51 +249,60 @@ with app.server.app_context():
 
         # Query 4.1 in requirements
         qh1 = html.H3("Company Prices")
+        header = 'Price'
         df = pd.read_sql('''
-        SELECT sym AS "Company", close AS "Price ($)"
+        SELECT sym AS "Company", close AS "{}"
         FROM stock_price_minute
         WHERE dateid IN (
           SELECT MAX(dateid)
           FROM stock_price_minute
         )
         ORDER BY dateid DESC, sym ASC
-        ''', db.engine)
+        '''.format(header), db.engine)
+        df[header] = df[header].apply(money_format)
         sym_table = generate_table(df, 10)
 
         # Query 4.2 in requirements
         qh2 = html.H3("Highest Price in 10 Days")
+        header = 'Highest Price'
         df = pd.read_sql('''
-        SELECT sym AS "Company", MAX(close) AS "Highest Price ($)"
+        SELECT sym AS "Company", MAX(close) AS "{}"
         FROM stock_price_minute
         WHERE dateid >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
           AND sym = '{}';
-        '''.format(sym), db.engine)
+        '''.format(header, sym), db.engine)
+        df[header] = df[header].apply(money_format)
         max_table = generate_table(df, 10)
 
         # Query 4.3 in requirements
         qh3 = html.H3("Year Average Price")
+        header = 'Average Price'
         df = pd.read_sql('''
-        SELECT sym AS "Company", AVG(close) AS "Average Price ($)"
+        SELECT sym AS "Company", AVG(close) AS "{}"
         FROM stock_price_minute
         WHERE dateid >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
           AND sym = '{}';
-        '''.format(sym), db.engine)
+        '''.format(header, sym), db.engine)
+        df[header] = df[header].apply(money_format)
         avg_table = generate_table(df, 1)
 
         # Query 4.4 in requirements
         qh4 = html.H3("Year Lowest Price")
+        header = 'Lowest Price'
         df = pd.read_sql('''
-        SELECT sym AS "Company", MIN(close) AS "Lowest Price ($)"
+        SELECT sym AS "Company", MIN(close) AS "{}"
         FROM stock_price_minute
         WHERE dateid >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
           AND sym = '{}';
-        '''.format(sym), db.engine)
+        '''.format(header, sym), db.engine)
+        df[header] = df[header].apply(money_format)
         low_table = generate_table(df, 1)
 
         # Query 4.5 in requirements
         qh5 = html.H3("Average Less Than Lowest of {}".format(sym.upper()))
+        header = 'Average Price'
         df = pd.read_sql('''
-        SELECT sym AS "Company", sub1.close AS "Average Price ($)"
+        SELECT sym AS "Company", sub1.close AS "{}"
 
         FROM (
             SELECT sym, AVG(close) AS "close"
@@ -309,7 +321,8 @@ with app.server.app_context():
 
         GROUP BY sym, criteria
         HAVING sub1.close < criteria
-        ORDER BY sym ASC;'''.format(sym), db.engine)
+        ORDER BY sym ASC;'''.format(header, sym), db.engine)
+        df[header] = df[header].apply(money_format)
         avglow_table = generate_table(df, 100)
 
         return [qh1, sym_table, qh2, max_table, qh3, avg_table, qh4, low_table,

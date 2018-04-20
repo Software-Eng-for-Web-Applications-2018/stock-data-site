@@ -26,15 +26,47 @@ class JSONView(BaseView):
         except Exception as e:
             return self.empty_json
 
+    def valid_predictions(self, data):
+        try:
+           assert len(data['dateid']) == len(data['close'])
+        except AssertionError:
+            return False
+        return True
+
     @expose('/', methods=('GET',))
     def index(self):
         return self.empty_json
 
-    @expose('/<sym>', methods=('GET',))
+    @expose('/<sym>', methods=('GET', 'POST'))
     def get_test(self, sym):
-        sym_results = db.session.query(StockPriceMinute.sym).distinct().all()
-        valid_syms = ['test'] + [val.sym.lower() for val in sym_results]
-        if sym not in valid_syms:
-            print('Invalid symbol, valid symbols are {}'.format(valid_syms))
-            return abort(404)
-        return self.read_file(sym)
+
+        if request.method == 'POST':
+            # Read POST request
+            sym = request.form['sym']
+            predictions = request.form['predictions']
+
+            # Validate symbol
+            sym_results = db.session.query(StockPriceMinute.sym).distinct().all()
+            valid_syms = ['test'] + [val.sym.lower() for val in sym_results]
+            if sym not in valid_syms:
+                print('Invalid symbol, valid symbols are {}'.format(valid_syms))
+                return abort(404)
+
+            # Validate prediction data
+            try:
+                data = jsons.loads(predictions)
+            except:
+                return abort(404)
+            if not(self.valid_predictions(data)):
+                return abort(404)
+
+            # TODO: Overwrite json with posted data
+
+            return '200'
+        else:
+            sym_results = db.session.query(StockPriceMinute.sym).distinct().all()
+            valid_syms = ['test'] + [val.sym.lower() for val in sym_results]
+            if sym not in valid_syms:
+                print('Invalid symbol, valid symbols are {}'.format(valid_syms))
+                return abort(404)
+            return self.read_file(sym)

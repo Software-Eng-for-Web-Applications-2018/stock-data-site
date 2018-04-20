@@ -17,4 +17,4 @@ class LogoutView(BaseView):
         if current_user.is_authenticated:
             logout_user()
             flash("Logged Out Successfully")
-        return redirect('/home')
+        return redirect('/login')

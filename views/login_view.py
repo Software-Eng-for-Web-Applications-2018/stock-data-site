@@ -62,9 +62,9 @@ class LoginView(BaseView):
         next = request.args.get("next")
         form = LoginForm(request.form)
 
-        # Return to home if user already logged in
+        # Return to portal if user already logged in
         if current_user.is_authenticated:
-            return redirect('/home')
+            return redirect('/realtimeportal')
 
         # Validate posted form
         if (request.method == 'POST') and form.validate():

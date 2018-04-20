@@ -14,7 +14,7 @@ class DummyHome(BaseView):
 
     @expose('/')
     def index(self):
-        return redirect('/home')
+        return redirect('/realtimeportal')
 
 
 # Set application name and assets

@@ -15,8 +15,6 @@ import datetime
 import numpy as np
 import pandas as pd
 import plotly.plotly as py
-
-from models import StockPriceMinute
 # from MenuTypeSymbolStore import MenuTypeSymbolStore
 
 
@@ -102,6 +100,29 @@ with app.server.app_context():
 
         return (Dates,Data);
 
+    def get_predictions(sym):
+        '''Gets JSON with predictions from server.
+
+        args:
+            sym: Stock symbol to get predictions for
+
+        returns:
+            (str): String represenation of JSON.
+                "dateid": [<dates>]
+                "close": [<close prices>]
+        '''
+
+        # Lazy check for valid symbols
+        valid_syms = [val for val, _ in GetStockSymbols()]
+        if sym not in valid_syms:
+            return '{"dateid": [], "close": []}'
+
+        try:
+            with open('./predictions/{}.json'.format(sym), 'r') as f:
+                data = f.read()
+            return data
+        except Exception as e:
+            return '{"dateid": [], "close": []}'
 
     trend_sym_options = GetStockSymbols();
 
@@ -208,6 +229,16 @@ with app.server.app_context():
                   [Input('rt-trend-sym-dropdown', 'value')],
                   events=[Event('graph-update', 'interval')])
     def quick_info_update(sym):
+        '''Updates tables on dashboards.
+
+        Section 4 requirement queries.
+
+        args:
+            sym: Stock symbol for "any" argument in requirements.
+
+        returns:
+            list: HTML headers and DCC tables
+        '''
         # Really lazy hack to prevent SQL injection
         valid_syms = [val for val, _ in GetStockSymbols()]
         if sym not in valid_syms:

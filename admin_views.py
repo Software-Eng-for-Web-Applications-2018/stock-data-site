@@ -8,6 +8,7 @@ from views.dash_view import DashView
 from views.home_view import HomeView
 from views.login_view import LoginView
 from views.logout_view import LogoutView
+from views.json_view import JSONView
 from views.user_view import UserView
 from views.stock_price_view import StockPriceView
 
@@ -39,6 +40,9 @@ def add_admin_views(admin, app):
         db.session,
         name='Minute Stock Prices')
     )
+
+    # JSON Prediction View
+    admin.add_view(JSONView(name='Predictions', endpoint='predictions'))
 
     # Admin portal views
     admin.add_view(UserView(User, db.session, name='Users'))

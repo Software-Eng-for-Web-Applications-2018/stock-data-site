@@ -1,4 +1,5 @@
 from app import db
+from collections import deque
 from dash.dependencies import (Input, Output, State, Event)
 from flask_security import (Security, SQLAlchemyUserDatastore, UserMixin,
     RoleMixin, current_user, login_required)
@@ -6,13 +7,14 @@ from models import StockPriceMinute
 from plotly import graph_objs as go
 from plotly.graph_objs import *
 from plotly_app import app
+from utils import generate_table
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import datetime
 import numpy as np
+import pandas as pd
 import plotly.plotly as py
-from collections import deque
 
 from models import StockPriceMinute
 # from MenuTypeSymbolStore import MenuTypeSymbolStore
@@ -142,7 +144,9 @@ with app.server.app_context():
                     }
                 ),
                 dcc.Interval(id='graph-update', interval=10000)
-            ]),
+            ], style={'padding-bottom': '150px'}),  # Hack to avoid resizing
+            html.Div(id='rt-quick-info'),
+            html.Div(id='intermediate-value', style={'display': 'none'}),
             html.P(id='placeholder'),   # THIS IS A HACK! TO ALLOW US TO UPDATE VALUES ON A CALLBACK
             html.Div(id='intermediate-value', style={'display': 'none'}),
         ], className="container")
@@ -167,8 +171,6 @@ with app.server.app_context():
     #This is really what they suggest 
     #https://dash.plot.ly/sharing-data-between-callbacks
     @app.callback(Output("rt-stock-trend-graph", "figure"),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value')],events=[Event('graph-update', 'interval')]) #,Event('graph-update','interval')])
-
-
     def update_trend(*args):
         #('type','sym')
         print(args);
@@ -202,6 +204,82 @@ with app.server.app_context():
             'layout': go.Layout(xaxis = dict(range=[min(X),max(X)]),yaxis = dict(range=[min(Y),max(Y)]) )
         }
 
+    @app.callback(Output('rt-quick-info', 'children'),
+                  [Input('rt-trend-sym-dropdown', 'value')],
+                  events=[Event('graph-update', 'interval')])
+    def quick_info_update(sym):
+        # Really lazy hack to prevent SQL injection
+        valid_syms = [val for val, _ in GetStockSymbols()]
+        if sym not in valid_syms:
+            return "ERROR: Invalid symbol selection"
 
+        # Query 4.1 in requirements
+        qh1 = html.H3("Company Prices")
+        df = pd.read_sql('''
+        SELECT sym AS "Company", close AS "Price ($)"
+        FROM stock_price_minute
+        WHERE dateid IN (
+          SELECT MAX(dateid)
+          FROM stock_price_minute
+        )
+        ORDER BY dateid DESC, sym ASC
+        ''', db.engine)
+        sym_table = generate_table(df, 10)
 
+        # Query 4.2 in requirements
+        qh2 = html.H3("Highest Price in 10 Days")
+        df = pd.read_sql('''
+        SELECT sym AS "Company", MAX(close) AS "Highest Price ($)"
+        FROM stock_price_minute
+        WHERE dateid >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+          AND sym = '{}';
+        '''.format(sym), db.engine)
+        max_table = generate_table(df, 10)
 
+        # Query 4.3 in requirements
+        qh3 = html.H3("Year Average Price")
+        df = pd.read_sql('''
+        SELECT sym AS "Company", AVG(close) AS "Average Price ($)"
+        FROM stock_price_minute
+        WHERE dateid >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+          AND sym = '{}';
+        '''.format(sym), db.engine)
+        avg_table = generate_table(df, 1)
+
+        # Query 4.4 in requirements
+        qh4 = html.H3("Year Lowest Price")
+        df = pd.read_sql('''
+        SELECT sym AS "Company", MIN(close) AS "Lowest Price ($)"
+        FROM stock_price_minute
+        WHERE dateid >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+          AND sym = '{}';
+        '''.format(sym), db.engine)
+        low_table = generate_table(df, 1)
+
+        # Query 4.5 in requirements
+        qh5 = html.H3("Average Less Than Lowest of {}".format(sym.upper()))
+        df = pd.read_sql('''
+        SELECT sym AS "Company", sub1.close AS "Average Price ($)"
+
+        FROM (
+            SELECT sym, AVG(close) AS "close"
+            FROM stock_price_minute
+            WHERE dateid >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+            GROUP BY sym
+        ) as sub1
+
+        LEFT JOIN (
+          SELECT MIN(close) AS criteria
+          FROM stock_price_minute
+          WHERE dateid >= DATE_SUB(CURDATE(), INTERVAL 365 DAY)
+            AND sym = '{}'
+        ) AS sub2
+          ON 1 = 1
+
+        GROUP BY sym, criteria
+        HAVING sub1.close < criteria
+        ORDER BY sym ASC;'''.format(sym), db.engine)
+        avglow_table = generate_table(df, 100)
+
+        return [qh1, sym_table, qh2, max_table, qh3, avg_table, qh4, low_table,
+                qh5, avglow_table]

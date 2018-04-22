@@ -5,6 +5,7 @@
 import datetime
 import json
 from app import db
+from config import POST_PASSWD
 from flask import (abort, request, url_for, redirect, flash, current_app)
 from flask_admin import (BaseView, expose)
 from flask_login import (current_user, login_user)
@@ -17,6 +18,9 @@ class JSONView(BaseView):
 
     def is_visible(self):
         return False
+
+    def valid_passwd(self, passwd):
+        return passwd == POST_PASSWD
 
     def read_file(self, sym):
         try:
@@ -38,29 +42,38 @@ class JSONView(BaseView):
         return self.empty_json
 
     @expose('/<sym>', methods=('GET', 'POST'))
-    def get_test(self, sym):
-
+    def sym_handle(self, sym):
         if request.method == 'POST':
             # Read POST request
-            sym = request.form['sym']
+            passwd = request.form['passwd']
+            sym = request.form['sym'].lower()
             predictions = request.form['predictions']
+
+            # Validate password
+            if not self.valid_passwd(passwd):
+                print('Invalid password')
+                return abort(403)
 
             # Validate symbol
             sym_results = db.session.query(StockPriceMinute.sym).distinct().all()
             valid_syms = ['test'] + [val.sym.lower() for val in sym_results]
             if sym not in valid_syms:
                 print('Invalid symbol, valid symbols are {}'.format(valid_syms))
-                return abort(404)
+                return abort(400)
 
             # Validate prediction data
             try:
-                data = jsons.loads(predictions)
-            except:
-                return abort(404)
+                data = json.loads(predictions)
+            except Exception as e:
+                print(e)
+                return abort(400)
             if not(self.valid_predictions(data)):
-                return abort(404)
+                print('Invalid data format')
+                return abort(400)
 
             # TODO: Overwrite json with posted data
+            with open('./predictions/' + sym + '.json', 'w') as f:
+                f.write(json.dumps(data))
 
             return '200'
         else:

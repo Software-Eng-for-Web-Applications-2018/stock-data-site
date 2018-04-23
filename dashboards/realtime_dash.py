@@ -15,6 +15,7 @@ import datetime
 import numpy as np
 import pandas as pd
 import plotly.plotly as py
+import json
 # from MenuTypeSymbolStore import MenuTypeSymbolStore
 
 
@@ -29,14 +30,18 @@ def money_format(val):
     return '${0:.2f}'.format(round(val, 2))
 
 
+def dt_format(val):
+    return datetime.datetime.strptime(val, '%Y-%m-%d %H:%M')
+
+
 with app.server.app_context():
     # Label and value pairs for dropdown
     trend_type_options = (
-        ('Volume', 'volume'),
         ('Close', 'close'),
-        ('High', 'high'), 
         ('Open', '_open'), 
-        ('Low', 'low')
+        ('High', 'high'), 
+        ('Low', 'low'),
+        ('Volume', 'volume')
     )
     # TODO: Query from available options
     def GetStockSymbols():
@@ -110,22 +115,31 @@ with app.server.app_context():
             sym: Stock symbol to get predictions for
 
         returns:
-            (str): String represenation of JSON.
-                "dateid": [<dates>]
-                "close": [<close prices>]
+            (list of tuples): [(name, data)]
         '''
 
         # Lazy check for valid symbols
         valid_syms = [val for val, _ in GetStockSymbols()]
         if sym not in valid_syms:
-            return '{"dateid": [], "close": []}'
+            return {"dateid": [], "close": []}
 
-        try:
-            with open('./predictions/{}.json'.format(sym), 'r') as f:
-                data = f.read()
-            return data
-        except Exception as e:
-            return '{"dateid": [], "close": []}'
+        data = []
+        for pred_type in ('bay', 'neu'):
+            # Pretty name for series name
+            if pred_type == 'bay': pname = 'Bayesian'
+            elif pred_type == 'neu': pname = 'Neural'
+            elif pred_type == 'svm': pname = 'SVM'
+            else: pname = 'SVM'
+
+            try:
+                with open('./predictions/{}_{}.json'.format(sym.lower(), pred_type), 'r') as f:
+                    vals = json.loads(f.read())
+                vals['dateid'] = [dt_format(val) for val in vals['dateid']]
+                data.append((pname, vals))
+            except Exception as e:
+                print(e)
+                data.append((pname, {"dateid": [], "close": []}))
+        return data
 
     trend_sym_options = GetStockSymbols();
 
@@ -219,13 +233,22 @@ with app.server.app_context():
             # Debug print and return data not found message
             print(e.message)
             return "Stock Data Not Found"
-    
+
+        data_list = [{'x': list(X), 'y': list(Y), 'name': 'Actual'}]
+
+        # Add predictions if close is plotted
+        if args[0] == 'close':
+            predictions = get_predictions(args[1])
+            for name, data in predictions:
+                data_list.append({
+                    'x': data['dateid'],
+                    'y': data['close'],
+                    'name': name
+                })
+
         return {
-            'data': [{
-                'x': list(X),
-                'y': list(Y)
-            }],
-            'layout': go.Layout(xaxis = dict(range=[min(X),max(X)]),yaxis = dict(range=[min(Y),max(Y)]) )
+            'data': data_list,
+            'layout': go.Layout(xaxis = dict(range=[min(X),max(X)]),yaxis = dict(range=[min(Y),max(Y)]))
         }
 
     @app.callback(Output('rt-quick-info', 'children'),

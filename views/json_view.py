@@ -16,15 +16,17 @@ class JSONView(BaseView):
 
     empty_json = '{"dateid": [], "close": []}'
 
+    valid_pred_types = ('bay', 'neu', 'svm')
+
     def is_visible(self):
         return False
 
     def valid_passwd(self, passwd):
         return passwd == POST_PASSWD
 
-    def read_file(self, sym):
+    def read_file(self, sym, pred_type):
         try:
-            with open('./predictions/{}.json'.format(sym), 'r') as f:
+            with open('./predictions/{}_{}.json'.format(sym, pred_type), 'r') as f:
                 data = f.read()
             return data
         except Exception as e:
@@ -41,25 +43,30 @@ class JSONView(BaseView):
     def index(self):
         return self.empty_json
 
-    @expose('/<sym>', methods=('GET', 'POST'))
-    def sym_handle(self, sym):
+    @expose('/<sym>/<pred_type>', methods=('GET', 'POST'))
+    def sym_handle(self, sym, pred_type):
+        # Validate symbol
+        sym_results = db.session.query(StockPriceMinute.sym).distinct().all()
+        valid_syms = ['test'] + [val.sym.lower() for val in sym_results]
+        if sym not in valid_syms:
+            print('Invalid symbol, valid symbols are {}'.format(valid_syms))
+            return abort(404)
+
+        # Validate symbol
+        if pred_type not in self.valid_pred_types:
+            print('Invalid prediction type, valid prediction types are {}'.format(
+                self.valid_pred_types))
+            return abort(404)
+
         if request.method == 'POST':
             # Read POST request
             passwd = request.form['passwd']
-            sym = request.form['sym'].lower()
             predictions = request.form['predictions']
 
             # Validate password
             if not self.valid_passwd(passwd):
                 print('Invalid password')
                 return abort(403)
-
-            # Validate symbol
-            sym_results = db.session.query(StockPriceMinute.sym).distinct().all()
-            valid_syms = ['test'] + [val.sym.lower() for val in sym_results]
-            if sym not in valid_syms:
-                print('Invalid symbol, valid symbols are {}'.format(valid_syms))
-                return abort(400)
 
             # Validate prediction data
             try:
@@ -72,14 +79,10 @@ class JSONView(BaseView):
                 return abort(400)
 
             # TODO: Overwrite json with posted data
-            with open('./predictions/' + sym + '.json', 'w') as f:
+            fname = sym + '_' + pred_type + '.json'
+            with open('./predictions/' + fname, 'w') as f:
                 f.write(json.dumps(data))
 
             return '200'
         else:
-            sym_results = db.session.query(StockPriceMinute.sym).distinct().all()
-            valid_syms = ['test'] + [val.sym.lower() for val in sym_results]
-            if sym not in valid_syms:
-                print('Invalid symbol, valid symbols are {}'.format(valid_syms))
-                return abort(404)
-            return self.read_file(sym)
+            return self.read_file(sym, pred_type)

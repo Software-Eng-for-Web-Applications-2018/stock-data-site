@@ -25,6 +25,9 @@ import json
 # global CurrentSymbol;
 # global LastCurrentType;
 # global LastCurrentSymbol;
+retension = 100
+x_pred = []
+y_pred = []
 
 
 ts_client = PredictionRequest()
@@ -216,14 +219,26 @@ with app.server.app_context():
 
         # Add predictions if close is plotted
         if args[0] == 'close':
-            # High, Low, Volume
-            latest_entry = get_latest_data(args[1])
-            pred = ts_client.get_pred(latest_entry)
-            y_pred = pred.get('ScaledPrediction', [])
-            if type(y_pred) is not list: y_pred = [y_pred]
-            x_pred = [X[-1] + datetime.timedelta(seconds=60*(i+1))
-                      for i, _ in enumerate(y_pred)]
-            print('predicted:', x_pred, y_pred)
+            run_pred = False
+            if len(x_pred) == 0: run_pred = True
+            elif X[-1] > x_pred[-1]: run_pred = True
+
+            if run_pred:
+                # High, Low, Volume
+                latest_entry = get_latest_data(args[1])
+
+                # Requests latest prediction
+                pred = ts_client.get_pred(latest_entry)
+
+                # Set plot data
+                x_pred.append(X[-1] + datetime.timedelta(seconds=60))
+                y_pred.append(pred.get('ScaledPrediction', None))
+                while len(x_pred) > retension:
+                    x_pred.pop(0)
+                while len(y_pred) > retension:
+                    y_pred.pop(0)
+                print('predicted:', x_pred[-1], y_pred[-1])
+
             data_list.append({'x': x_pred, 'y': y_pred, 'name': 'Predicted'})
 
         return {

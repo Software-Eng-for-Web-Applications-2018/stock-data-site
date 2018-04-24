@@ -15,6 +15,7 @@ import datetime
 import numpy as np
 import pandas as pd
 import plotly.plotly as py
+import plotly.graph_objs as go
 import json
 # from MenuTypeSymbolStore import MenuTypeSymbolStore
 
@@ -159,11 +160,11 @@ with app.server.app_context():
                 dcc.Graph(
                     id='rt-stock-trend-graph',animate=True,
                     style={
-                        'max-height': '300px'
+                        'max-height': '500px'
                     }
                 ),
                 dcc.Interval(id='graph-update', interval=10000)
-            ], style={'padding-bottom': '150px'}),  # Hack to avoid resizing
+            ]),  # Hack to avoid resizing
             html.Div(id='rt-quick-info'),
             html.Div(id='intermediate-value', style={'display': 'none'}),
             html.P(id='placeholder'),   # THIS IS A HACK! TO ALLOW US TO UPDATE VALUES ON A CALLBACK
@@ -243,7 +244,11 @@ with app.server.app_context():
 
         return {
             'data': data_list,
-            'layout': go.Layout(xaxis = dict(range=[min(X),max(X)]),yaxis = dict(range=[min(Y),max(Y)]))
+            'layout': go.Layout(
+                xaxis=dict(range=[min(X),max(X)]),
+                yaxis=dict(range=[min(Y),max(Y)]),
+                margin=go.Margin(l=50, r=50, b=50, t=50, pad=10)
+            )
         }
 
     @app.callback(Output('rt-quick-info', 'children'),

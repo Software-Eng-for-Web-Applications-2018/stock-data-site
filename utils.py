@@ -2,7 +2,10 @@
 # debugged by: Kevin Pielacki
 
 
+from config import (TENSOR_HOST, TENSOR_PORT)
 import dash_html_components as html
+import json
+import requests
 
 
 def generate_table(dataframe, max_rows=10):
@@ -21,3 +24,21 @@ def generate_table(dataframe, max_rows=10):
         ]) for i in range(min(len(dataframe), max_rows))],
         className='table table-striped'
     )
+
+
+class PredictionRequest(object):
+
+    headers = {
+        'postman-token': '1b4663d0-fc47-007a-673d-721ebad9985e',
+        'cache-control': 'no-cache',
+        'content-type': 'application/json'
+    }
+
+    url = 'http://{}:{}/inference'.format(TENSOR_HOST, TENSOR_PORT)
+
+    def get_pred(self, data):
+        r = requests.post(self.url, data=json.dumps(data), headers=self.headers)
+        if r.status_code != 200:
+            return {}
+
+        return r.json()

@@ -40,7 +40,6 @@ def get_latest_data(sym):
     return result.high, result.low, result.volume
 
 
-
 def money_format(val):
     return '${0:.2f}'.format(round(val, 2))
 
@@ -76,7 +75,8 @@ with app.server.app_context():
             StockSet = (StockSymbol,StockSymbol);
             StockSymlist.append(StockSet);
 
-        return tuple(StockSymlist);
+        StockSymlist.sort(key=lambda x: x[0])
+        return tuple(StockSymlist)
 
 
     # if update is false all the records will be pulled. if update is true then only the last few elements will be pulled. 

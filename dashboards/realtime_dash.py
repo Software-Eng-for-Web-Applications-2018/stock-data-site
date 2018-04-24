@@ -143,6 +143,7 @@ with app.server.app_context():
     
     layout = html.Div([
         html.Div([
+            dcc.Interval(id='graph-update', interval=10000),
             html.H1('Real-Time Prediction Portal'),
             html.Div([
                 dcc.Dropdown(
@@ -163,8 +164,18 @@ with app.server.app_context():
                         'max-height': '500px'
                     }
                 ),
-                dcc.Interval(id='graph-update', interval=10000)
-            ]),  # Hack to avoid resizing
+            ]),
+            html.Div([
+                html.H1('Guessing Game'),
+                    dcc.RadioItems(
+                        options=[
+                            {'label': 'UP!', 'value': 'up'},
+                            {'label': 'DOWN!', 'value': 'down'}
+                        ],
+                        value='null',
+                        className='radio'
+                    )
+            ]),
             html.Div(id='rt-quick-info'),
             html.Div(id='intermediate-value', style={'display': 'none'}),
             html.P(id='placeholder'),   # THIS IS A HACK! TO ALLOW US TO UPDATE VALUES ON A CALLBACK

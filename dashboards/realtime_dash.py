@@ -27,8 +27,12 @@ import json
 # global LastCurrentType;
 # global LastCurrentSymbol;
 retension = 100
+x_current = []
+y_current = []
+latest_feature = []
 x_pred = []
 y_pred = []
+close_max = 1
 
 
 ts_client = PredictionRequest()
@@ -82,46 +86,65 @@ with app.server.app_context():
     # if update is false all the records will be pulled. if update is true then only the last few elements will be pulled. 
     def GetStockDataBySymbol(Datatype,Symbol,update):
 
-        if(update == True):
-            StockInfoObjectList = StockPriceMinute.query.filter_by(sym = Symbol).first();  # probably could chain filters together
+        if update:
+            StockInfoObjectList = StockPriceMinute.query.filter_by(sym=Symbol).first();  # probably could chain filters together
         else:
-            StockInfoObjectList = StockPriceMinute.query.filter_by(sym = Symbol);  # probably could chain filters together
+            StockInfoObjectList = StockPriceMinute.query.filter_by(sym=Symbol);  # probably could chain filters together
         # print(StockInfoObjectList[0]);
         # print(StockInfoObjectList[0].dateid);
         # print(StockInfoObjectList[0].volume);
+        closes = []
+        opens = []
+        lows = []
+        highs = []
+        volumes = []
 
         Dates = [];
         Data = [];
+        global x_current
+        global y_current
+        global latest_feature
+        global close_max
+        x_current = []
+        y_current = []
+        latest_feature = []
 
-        if(Datatype == 'volume'):
-            if(update == True):
-                Dates.append(StockInfoObjectList.dateid);
-                Data.append(StockInfoObjectList.volume);
-            else:
-                for Record in StockInfoObjectList:
-                    Dates.append(Record.dateid);
-                    Data.append(Record.volume);
-        elif(Datatype == 'close'):
-            for Record in  StockInfoObjectList:
-                Dates.append(Record.dateid);
-                Data.append(Record.close);
-        elif(Datatype == 'high'):
-            for Record in  StockInfoObjectList:
-                Dates.append(Record.dateid);
-                Data.append(Record.high);
-        elif(Datatype == '_open'):
-            for Record in  StockInfoObjectList:
-                Dates.append(Record.dateid);
-                Data.append(Record._open);
-        elif(Datatype == 'low'):
-            for Record in  StockInfoObjectList:
-                Dates.append(Record.dateid);
-                Data.append(Record.low);
+        # Get records
+        if update:
+            Dates.append(StockInfoObjectList.dateid)
+            closes.append(StockINfoObjectList.close)   
+            opens.append(StockINfoObjectList._open)     
+            lows.append(StockINfoObjectList.low)       
+            highs.append(StockINfoObjectList.high)     
+            volumes.append(StockINfoObjectList.volume) 
         else:
-            print('Error!');
+            for Record in StockInfoObjectList:
+                Dates.append(Record.dateid)
+                closes.append(Record.close)
+                opens.append(Record._open)
+                lows.append(Record.low)
+                highs.append(Record.high)
+                volumes.append(Record.volume)
 
+        x_current.append(Dates[-1])
+        y_current.append(closes[-1])
+        latest_feature = (highs[-1] / np.max(highs), lows[-1] / np.max(lows), volumes[-1] / np.max(volumes))
+        close_max = np.max(closes)
+        if(Datatype == 'volume'):
+            Data = volumes
+        elif(Datatype == 'close'):
+            Data = closes
+        elif(Datatype == 'high'):
+            Data = highs
+        elif(Datatype == '_open'):
+            Data = opens
+        elif(Datatype == 'low'):
+            Data = lows
+        else:
+            print("Bad selection")
+            Data = []
 
-        return (Dates,Data);
+        return (Dates, Data);
 
     trend_sym_options = GetStockSymbols();
 
@@ -201,7 +224,10 @@ with app.server.app_context():
 
     #This is really what they suggest 
     #https://dash.plot.ly/sharing-data-between-callbacks
-    @app.callback(Output("rt-stock-trend-graph", "figure"),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value')],events=[Event('graph-update', 'interval')]) #,Event('graph-update','interval')])
+    @app.callback(Output("rt-stock-trend-graph", "figure"),
+                  [Input('rt-trend-type-dropdown', 'value'),
+                   Input('rt-trend-sym-dropdown', 'value')],
+                  events=[Event('graph-update', 'interval')]) #,Event('graph-update','interval')])
     def update_trend(*args):
         #('type','sym')
         print(args);
@@ -236,6 +262,7 @@ with app.server.app_context():
             elif X[-1] > x_pred[-1]: run_pred = True
 
             if run_pred:
+                global latest_feature
                 # High, Low, Volume
                 latest_entry = get_latest_data(args[1])
 

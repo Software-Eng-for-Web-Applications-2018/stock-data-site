@@ -7,7 +7,7 @@ from models import StockPriceMinute
 from plotly import graph_objs as go
 from plotly.graph_objs import *
 from plotly_app import app
-from utils import generate_table
+from utils import (generate_table, PredictionRequest)
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -25,6 +25,17 @@ import json
 # global CurrentSymbol;
 # global LastCurrentType;
 # global LastCurrentSymbol;
+
+
+ts_client = PredictionRequest()
+
+
+def get_latest_data(sym):
+    result = StockPriceMinute.query.filter_by(sym=sym) \
+                                   .order_by(StockPriceMinute.dateid).first()
+    return result.high, result.low, result.volume
+
+
 
 def money_format(val):
     return '${0:.2f}'.format(round(val, 2))
@@ -107,39 +118,6 @@ with app.server.app_context():
 
 
         return (Dates,Data);
-
-    def get_predictions(sym):
-        '''Gets JSON with predictions from server.
-
-        args:
-            sym: Stock symbol to get predictions for
-
-        returns:
-            (list of tuples): [(name, data)]
-        '''
-
-        # Lazy check for valid symbols
-        valid_syms = [val for val, _ in GetStockSymbols()]
-        if sym not in valid_syms:
-            return {"dateid": [], "close": []}
-
-        data = []
-        for pred_type in ('bay', 'neu'):
-            # Pretty name for series name
-            if pred_type == 'bay': pname = 'Bayesian'
-            elif pred_type == 'neu': pname = 'Neural'
-            elif pred_type == 'svm': pname = 'SVM'
-            else: pname = 'SVM'
-
-            try:
-                with open('./predictions/{}_{}.json'.format(sym.lower(), pred_type), 'r') as f:
-                    vals = json.loads(f.read())
-                vals['dateid'] = [dt_format(val) for val in vals['dateid']]
-                data.append((pname, vals))
-            except Exception as e:
-                print(e)
-                data.append((pname, {"dateid": [], "close": []}))
-        return data
 
     trend_sym_options = GetStockSymbols();
 
@@ -238,13 +216,15 @@ with app.server.app_context():
 
         # Add predictions if close is plotted
         if args[0] == 'close':
-            predictions = get_predictions(args[1])
-            for name, data in predictions:
-                data_list.append({
-                    'x': data['dateid'],
-                    'y': data['close'],
-                    'name': name
-                })
+            # High, Low, Volume
+            latest_entry = get_latest_data(args[1])
+            pred = ts_client.get_pred(latest_entry)
+            y_pred = pred.get('ScaledPrediction', [])
+            if type(y_pred) is not list: y_pred = [y_pred]
+            x_pred = [X[-1] + datetime.timedelta(seconds=60*(i+1))
+                      for i, _ in enumerate(y_pred)]
+            print('predicted:', x_pred, y_pred)
+            data_list.append({'x': x_pred, 'y': y_pred, 'name': 'Predicted'})
 
         return {
             'data': data_list,

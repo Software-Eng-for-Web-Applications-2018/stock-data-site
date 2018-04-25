@@ -35,7 +35,7 @@ y_preds = OrderedDict(neur=[], svm=[], _all=[])
 close_max = 1
 last_sym = None
 last_entry = None
-current_selection = 'neutral'
+last_glyph = hourglass_glyph
 
 
 ts_client = PredictionRequest()
@@ -49,7 +49,7 @@ def update_score(userid, val):
     ON DUPLICATE KEY UPDATE
     `score` = `score` + {};
     '''.format(userid, val, val)
-    pd.read_sql(query, db.engine)
+    db.engine.execute(query)
 
 
 def get_score(userid, val):    
@@ -200,7 +200,6 @@ with app.server.app_context():
         ('Last Month', '142715'),
         ('All Time', 'all'),
     )
-    global current_selection
     layout = html.Div([
         html.Div([
             dcc.Interval(id='graph-update', interval=10000),
@@ -233,18 +232,26 @@ with app.server.app_context():
             ]),
             html.Div([
                 html.H1('Guessing Game'),
-                    html.Div(id='rt-guessing-score'),
-                    dcc.RadioItems(
-                        id='rt-game-radio',
-                        options=[
-                            {'label': "It's Going UP!", 'value': 'up'},
-                            {'label': "Not Going to Guess", 'value': 'neutral'},
-                            {'label': "It's Going Down!", 'value': 'down'}
-                        ],
-                        value=current_selection,
-                        className='radio',
-                        style={'padding-left': '10px'}
-                    )
+                html.Div(
+                    dcc.Slider(
+                        id='rt-guess-slider',
+                        min=0,
+                        max=2,
+                        value=1,
+                        step=None,
+                        marks={
+                            0: "It's Going Down!",
+                            1: "I'm Not Guessing",
+                            2: "It's Going Up!",
+                        },
+                    ), style={
+                        'padding-top': '20px',
+                        'padding-bottom': '50px',
+                        'padding-left': '200px',
+                        'padding-right': '200px'
+                    }
+                ),
+                html.Div(id='rt-guessing-score')
             ]),
             html.Div(id='rt-quick-info'),
             html.Div(id='intermediate-value', style={'display': 'none'}),
@@ -335,7 +342,7 @@ with app.server.app_context():
             x_pred.append(X[-1] + datetime.timedelta(seconds=60)) 
             while len(x_pred) > retension: x_pred.pop(0)
             for ml_type in y_preds.keys():
-                if key == '_all': continue
+                if ml_type == '_all': continue
                 # Requests latest prediction
                 pred = ts_client.get_pred(latest_feature, 'rt', ml_type, args[1].lower())
                 y_preds[ml_type].append(pred.get('ScaledPrediction', 0) * close_max)
@@ -375,26 +382,30 @@ with app.server.app_context():
         }
 
     @app.callback(Output('rt-guessing-score', 'children'),                                          
-                  [Input('rt-trend-sym-dropdown', 'value')],                                    
-                  events=[Event('graph-update', 'interval')])                                   
+                  [Input('rt-guess-slider', 'value')],
+                  events=[Event('graph-update', 'interval')])
     def score_update(guess):                                                                 
-        global last_entry                                                    
-        global current_selection
-        current_selection = guess
-        glyph = hourglass_glyph                                              
-        if last_entry is None:                                               
-            last_entry = y_current[-1]                                       
-        elif last_entry != y_current[-1]:                                    
-            diff = y_current[-1] - last_entry                                
-            last_entry = y_current[-1]                                       
-            if guess == 'up' and diff > -1 or guess == 'down' and diff < 0:   
-                update_score(1, 1)                                           
-                glyph = plus_glyph                                           
-            elif guess == 'up' and diff < 0 or guess == 'down' and diff > 0: 
-                update_score(1, 1)                                           
-                glyph = minus_glyph                                          
-        current_score = 'Current Score: {}'.format(get_score(1, 1))
-        return html.Div([current_score, glyph])
+        global last_entry
+        global last_glyph
+        glyph = last_glyph
+        if last_entry is None:                                                                          
+            last_entry = y_current[-1]                                                                  
+        elif last_entry != y_current[-1]:                                                               
+            diff = y_current[-1] - last_entry                                                           
+            last_entry = y_current[-1]                                                                  
+            if (guess == 2 and diff > 0) or (guess == 0 and diff < 0):
+                update_score(1, 1)                                                                      
+                glyph = plus_glyph                                                                      
+                last_glyph = glyph
+            elif (guess == 1 and diff < 0) or (guess == 0 and diff > 0):    
+                update_score(1, -1)                                                                      
+                glyph = minus_glyph                                                                     
+                last_glyph = glyph
+            else:
+                glyph = hourglass_glyph                                                                         
+                last_glyph = glyph
+        current_score = 'Current Score: {} '.format(get_score(2, 1))                                     
+        return html.Div([current_score, glyph])                                              
 
     @app.callback(Output('rt-quick-info', 'children'),
                   [Input('rt-trend-sym-dropdown', 'value')],
@@ -500,5 +511,5 @@ with app.server.app_context():
 
         pred_data = html.Div([html.H3("Predicted Value"), display_val])
 
-        return [pred_data, qh1, sym_table, qh2, max_table, qh3, avg_table, qh4,
-                low_table, qh5, avglow_table]
+        return [pred_data, qh1, sym_table, qh2, max_table, qh3,
+                avg_table, qh4, low_table, qh5, avglow_table]

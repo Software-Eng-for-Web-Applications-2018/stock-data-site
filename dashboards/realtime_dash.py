@@ -33,6 +33,7 @@ latest_feature = []
 x_pred = []
 y_pred = []
 close_max = 1
+last_sym = None
 
 
 ts_client = PredictionRequest()
@@ -163,12 +164,25 @@ with app.server.app_context():
     #populate the init values 
     X.extend(InitValues[0])
     Y.extend(InitValues[1])
-    
+
+    trend_count_options = (
+        ('Last Hour', '60'),
+        ('Last Day', '1440'),
+        ('Last Week', '10080'),
+        ('Last Month', '312480'),
+        ('All Time', 'all'),
+    )
     layout = html.Div([
         html.Div([
             dcc.Interval(id='graph-update', interval=10000),
             html.H1('Real-Time Prediction Portal'),
             html.Div([
+                dcc.Dropdown(                                         
+                    id='rt-trend-count-dropdown',                      
+                    options=[{'label': label, 'value': value}         
+                             for label, value in trend_count_options], 
+                    value=trend_count_options[1][1]                    
+                ),                                                    
                 dcc.Dropdown(
                     id='rt-trend-type-dropdown',
                     options=[{'label': label, 'value': value}
@@ -226,7 +240,8 @@ with app.server.app_context():
     #https://dash.plot.ly/sharing-data-between-callbacks
     @app.callback(Output("rt-stock-trend-graph", "figure"),
                   [Input('rt-trend-type-dropdown', 'value'),
-                   Input('rt-trend-sym-dropdown', 'value')],
+                   Input('rt-trend-sym-dropdown', 'value'),
+                   Input('rt-trend-count-dropdown', 'value')],
                   events=[Event('graph-update', 'interval')]) #,Event('graph-update','interval')])
     def update_trend(*args):
         #('type','sym')
@@ -253,38 +268,70 @@ with app.server.app_context():
             print(e.message)
             return "Stock Data Not Found"
 
-        data_list = [{'x': list(X), 'y': list(Y), 'name': 'Actual'}]
+        data_list = []
+        if args[2] != 'all':
+            try:
+                n = int(args[2])
+            except ValueError:
+                n = 1440
+            idx = len(X) - n
+            if idx > 0:
+                data_list.append({'x': list(X)[idx:], 'y': list(Y)[idx:], 'name': 'Actual'})
+            else:
+                data_list.append({'x': list(X)[idx:], 'y': list(Y)[idx:], 'name': 'Actual'})
+        else:
+            data_list.append({'x': list(X), 'y': list(Y), 'name': 'Actual'})
 
         # Add predictions if close is plotted
+        global latest_feature 
+        global last_sym
+        global x_pred
+        global y_pred
+
+        run_pred = False
+        # Reset plot for new syms
+        if last_sym != args[1]:
+            last_sym = args[1]
+            x_pred = []
+            y_pred = []
+        if len(x_pred) == 0: run_pred = True
+        elif X[-1] > x_pred[-1]: run_pred = True
+        if run_pred:
+            # Requests latest prediction
+            pred = ts_client.get_pred(latest_feature, args[1])
+
+            # Set plot data
+            x_pred.append(X[-1] + datetime.timedelta(seconds=60))
+            y_pred.append(pred.get('ScaledPrediction', 0) * close_max)
+            print(pred.get('ScaledPrediction', 0), close_max)
+            while len(x_pred) > retension:
+                x_pred.pop(0)
+            while len(y_pred) > retension:
+                y_pred.pop(0)
+            print('predicted:', x_pred[-1], y_pred[-1])
+
         if args[0] == 'close':
-            run_pred = False
-            if len(x_pred) == 0: run_pred = True
-            elif X[-1] > x_pred[-1]: run_pred = True
+            data_list.append({
+                'x': x_pred,
+                'y': y_pred,
+                'name': 'Predicted',
+                'mode': 'markers',
+                'marker': {
+                    'size': 10,
+                    'color': 'green',
+                    'line': {'width': 2}
+                }
+            })
 
-            if run_pred:
-                global latest_feature
-                # High, Low, Volume
-                latest_entry = get_latest_data(args[1])
-
-                # Requests latest prediction
-                pred = ts_client.get_pred(latest_entry)
-
-                # Set plot data
-                x_pred.append(X[-1] + datetime.timedelta(seconds=60))
-                y_pred.append(pred.get('ScaledPrediction', None))
-                while len(x_pred) > retension:
-                    x_pred.pop(0)
-                while len(y_pred) > retension:
-                    y_pred.pop(0)
-                print('predicted:', x_pred[-1], y_pred[-1])
-
-            data_list.append({'x': x_pred, 'y': y_pred, 'name': 'Predicted'})
-
+        x_min = min(data_list[0]['x'])
+        x_max = max(data_list[-1]['x']) + datetime.timedelta(seconds=900)
+        y_min = min(data_list[0]['y'] + data_list[-1]['y']) - 1
+        y_max = max(data_list[0]['y'] + data_list[-1]['y']) + 1
         return {
             'data': data_list,
             'layout': go.Layout(
-                xaxis=dict(range=[min(X),max(X)]),
-                yaxis=dict(range=[min(Y),max(Y)]),
+                xaxis=dict(range=[x_min, x_max]),
+                yaxis=dict(range=[y_min, y_max]),
                 margin=go.Margin(l=50, r=50, b=50, t=50, pad=10)
             )
         }
@@ -386,5 +433,10 @@ with app.server.app_context():
         df[header] = df[header].apply(money_format)
         avglow_table = generate_table(df, 100)
 
-        return [qh1, sym_table, qh2, max_table, qh3, avg_table, qh4, low_table,
-                qh5, avglow_table]
+        pred_data = html.Div([
+            html.H3("Predicted Value"),
+            '${0:.2f}'.format(y_pred[-1])
+        ])
+
+        return [pred_data, qh1, sym_table, qh2, max_table, qh3, avg_table, qh4,
+                low_table, qh5, avglow_table]

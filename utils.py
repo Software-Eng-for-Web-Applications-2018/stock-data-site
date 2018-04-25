@@ -2,7 +2,7 @@
 # debugged by: Kevin Pielacki
 
 
-from config import (TENSOR_HOST, TENSOR_PORT)
+from config import TENSOR_HOST
 import dash_html_components as html
 import json
 import requests
@@ -34,10 +34,17 @@ class PredictionRequest(object):
         'content-type': 'application/json'
     }
 
-    url = 'http://{}:{}/inference'.format(TENSOR_HOST, TENSOR_PORT)
+    root_url = 'http://{}:'.format(TENSOR_HOST)
 
-    def get_pred(self, data):
-        r = requests.post(self.url, data=json.dumps(data), headers=self.headers)
+    resource = '/inference'
+
+    sym_port_map = {
+        'amd': '5000',
+    }
+
+    def get_pred(self, data, sym):
+        url = self.root_url + self.sym_port_map.get('amd', 5000) + self.resource
+        r = requests.post(url, data=json.dumps(data), headers=self.headers)
         if r.status_code != 200:
             return {}
 

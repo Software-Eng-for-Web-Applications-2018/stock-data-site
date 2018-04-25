@@ -7,7 +7,7 @@ from models import StockPriceMinute
 from plotly import graph_objs as go
 from plotly.graph_objs import *
 from plotly_app import app
-from utils import (generate_table, PredictionRequest)
+from utils import (generate_table, PredictionRequest, plus_glyph, hourglass_glyph, minus_glyph)
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -34,9 +34,37 @@ x_pred = []
 y_preds = OrderedDict(neur=[], svm=[], _all=[])
 close_max = 1
 last_sym = None
+last_entry = None
+current_selection = 'neutral'
 
 
 ts_client = PredictionRequest()
+
+
+def update_score(userid, val):
+    query = '''
+    INSERT INTO `user_score`
+    (`userid`, score)
+    VALUES({}, {})
+    ON DUPLICATE KEY UPDATE
+    `score` = `score` + {};
+    '''.format(userid, val, val)
+    pd.read_sql(query, db.engine)
+
+
+def get_score(userid, val):    
+    query = '''                   
+    SELECT score
+    FROM user_score
+    WHERE userid = {}
+    LIMIT 1
+    '''.format(userid)  
+    df = pd.read_sql(query, db.engine) 
+    vals = df['score'].tolist()
+    if len(vals) <= 0:
+        return 0
+    return vals[0]
+
 
 
 def get_latest_data(sym):
@@ -172,6 +200,7 @@ with app.server.app_context():
         ('Last Month', '142715'),
         ('All Time', 'all'),
     )
+    global current_selection
     layout = html.Div([
         html.Div([
             dcc.Interval(id='graph-update', interval=10000),
@@ -204,13 +233,17 @@ with app.server.app_context():
             ]),
             html.Div([
                 html.H1('Guessing Game'),
+                    html.Div(id='rt-guessing-score'),
                     dcc.RadioItems(
+                        id='rt-game-radio',
                         options=[
-                            {'label': 'UP!', 'value': 'up'},
-                            {'label': 'DOWN!', 'value': 'down'}
+                            {'label': "It's Going UP!", 'value': 'up'},
+                            {'label': "Not Going to Guess", 'value': 'neutral'},
+                            {'label': "It's Going Down!", 'value': 'down'}
                         ],
-                        value='null',
-                        className='radio'
+                        value=current_selection,
+                        className='radio',
+                        style={'padding-left': '10px'}
                     )
             ]),
             html.Div(id='rt-quick-info'),
@@ -340,6 +373,28 @@ with app.server.app_context():
                 margin=go.Margin(l=50, r=50, b=50, t=50, pad=10)
             )
         }
+
+    @app.callback(Output('rt-guessing-score', 'children'),                                          
+                  [Input('rt-trend-sym-dropdown', 'value')],                                    
+                  events=[Event('graph-update', 'interval')])                                   
+    def score_update(guess):                                                                 
+        global last_entry                                                    
+        global current_selection
+        current_selection = guess
+        glyph = hourglass_glyph                                              
+        if last_entry is None:                                               
+            last_entry = y_current[-1]                                       
+        elif last_entry != y_current[-1]:                                    
+            diff = y_current[-1] - last_entry                                
+            last_entry = y_current[-1]                                       
+            if guess == 'up' and diff > -1 or guess == 'down' and diff < 0:   
+                update_score(1, 1)                                           
+                glyph = plus_glyph                                           
+            elif guess == 'up' and diff < 0 or guess == 'down' and diff > 0: 
+                update_score(1, 1)                                           
+                glyph = minus_glyph                                          
+        current_score = 'Current Score: {}'.format(get_score(1, 1))
+        return html.Div([current_score, glyph])
 
     @app.callback(Output('rt-quick-info', 'children'),
                   [Input('rt-trend-sym-dropdown', 'value')],

@@ -103,3 +103,17 @@ class PredictionRequest(object):
             return {}
 
         return r.json()
+
+
+plus_glyph = html.Span(
+    className='glyphicon glyphicon-ok',
+    style={'color': 'green'}
+)
+hourglass_glyph = html.Span(                    
+    className='glyphicon glyphicon-hourglass',  
+    style={'color': 'orange'}                  
+)                                           
+minus_glyph = html.Span(                 
+    className='glyphicon glyphicon-minus', 
+    style={'color': 'red'}            
+)                                       

@@ -493,10 +493,12 @@ with app.server.app_context():
         df[header] = df[header].apply(money_format)
         avglow_table = generate_table(df, 100)
 
-        pred_data = html.Div([
-            html.H3("Predicted Value"),
-            '${0:.2f}'.format(y_preds['_all'][-1])
-        ])
+        if len(y_preds['_all']) <= 0:
+            display_val = 'Loading...'
+        else:
+            display_val = '${0:.2f}'.format(y_preds['_all'][-1])
+
+        pred_data = html.Div([html.H3("Predicted Value"), display_val])
 
         return [pred_data, qh1, sym_table, qh2, max_table, qh3, avg_table, qh4,
                 low_table, qh5, avglow_table]

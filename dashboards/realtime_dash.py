@@ -1,5 +1,5 @@
 from app import db
-from collections import deque
+from collections import deque, OrderedDict
 from dash.dependencies import (Input, Output, State, Event)
 from flask_security import (Security, SQLAlchemyUserDatastore, UserMixin,
     RoleMixin, current_user, login_required)
@@ -31,7 +31,7 @@ x_current = []
 y_current = []
 latest_feature = []
 x_pred = []
-y_pred = []
+y_preds = OrderedDict(neur=[], svm=[], _all=[])
 close_max = 1
 last_sym = None
 
@@ -167,9 +167,9 @@ with app.server.app_context():
 
     trend_count_options = (
         ('Last Hour', '60'),
-        ('Last Day', '1440'),
-        ('Last Week', '10080'),
-        ('Last Month', '312480'),
+        ('Last Day', '391'),
+        ('Last Week', '2730'),
+        ('Last Month', '142715'),
         ('All Time', 'all'),
     )
     layout = html.Div([
@@ -286,45 +286,50 @@ with app.server.app_context():
         global latest_feature 
         global last_sym
         global x_pred
-        global y_pred
+        global y_preds
 
         run_pred = False
         # Reset plot for new syms
         if last_sym != args[1]:
             last_sym = args[1]
             x_pred = []
-            y_pred = []
+            for key in y_preds.keys(): y_preds[key] = []
+
         if len(x_pred) == 0: run_pred = True
         elif X[-1] > x_pred[-1]: run_pred = True
         if run_pred:
-            # Requests latest prediction
-            pred = ts_client.get_pred(latest_feature, args[1])
-
-            # Set plot data
-            x_pred.append(X[-1] + datetime.timedelta(seconds=60))
-            y_pred.append(pred.get('ScaledPrediction', 0) * close_max)
-            print(pred.get('ScaledPrediction', 0), close_max)
-            while len(x_pred) > retension:
-                x_pred.pop(0)
-            while len(y_pred) > retension:
-                y_pred.pop(0)
-            print('predicted:', x_pred[-1], y_pred[-1])
+            # Set plot data                                       
+            x_pred.append(X[-1] + datetime.timedelta(seconds=60)) 
+            while len(x_pred) > retension: x_pred.pop(0)
+            for ml_type in y_preds.keys():
+                if key == '_all': continue
+                # Requests latest prediction
+                pred = ts_client.get_pred(latest_feature, 'rt', ml_type, args[1].lower())
+                y_preds[ml_type].append(pred.get('ScaledPrediction', 0) * close_max)
+                while len(y_preds[ml_type]) > retension: y_preds[ml_type].pop(0)
 
         if args[0] == 'close':
-            data_list.append({
-                'x': x_pred,
-                'y': y_pred,
-                'name': 'Predicted',
-                'mode': 'markers',
-                'marker': {
-                    'size': 10,
-                    'color': 'green',
-                    'line': {'width': 2}
-                }
-            })
+            for key in y_preds.keys():
+                if key == 'neur': name = 'Neural Prediction'
+                elif key == 'svm': name = 'SVM Prediction'
+                elif key == 'bay': name = 'Bayesian Prediction'
+                elif key == '_all': name = 'Combined Prediction'
+                else: name = 'Unknown Prediction'
+
+                data_list.append({
+                    'x': x_pred,
+                    'y': y_preds[key],
+                    'name': name,
+                    'mode': 'markers',
+                    'marker': {
+                        'size': 10,
+                        'line': {'width': 2}
+                    }
+                })
 
         x_min = min(data_list[0]['x'])
         x_max = max(data_list[-1]['x']) + datetime.timedelta(seconds=900)
+
         y_min = min(data_list[0]['y'] + data_list[-1]['y']) - 1
         y_max = max(data_list[0]['y'] + data_list[-1]['y']) + 1
         return {
@@ -435,7 +440,7 @@ with app.server.app_context():
 
         pred_data = html.Div([
             html.H3("Predicted Value"),
-            '${0:.2f}'.format(y_pred[-1])
+            '${0:.2f}'.format(y_preds['_all'][-1])
         ])
 
         return [pred_data, qh1, sym_table, qh2, max_table, qh3, avg_table, qh4,

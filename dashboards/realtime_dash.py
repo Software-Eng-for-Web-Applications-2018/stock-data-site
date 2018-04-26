@@ -7,6 +7,7 @@ from models import StockPriceMinute
 from plotly import graph_objs as go
 from plotly.graph_objs import *
 from plotly_app import app
+from sklearn.preprocessing import MinMaxScaler
 from utils import (generate_table, PredictionRequest, plus_glyph, hourglass_glyph, minus_glyph)
 import dash
 import dash_core_components as dcc
@@ -42,10 +43,26 @@ dash_data = {
     'y_preds': OrderedDict(neur=[], svm=[], _all=[]),
     'latest_feature': [],
     'close_max': 1,
+    'close_min': 1,
+    'high_max': 1, 
+    'high_min': 1, 
+    'low_max': 1, 
+    'low_min': 1, 
+    'vol_max': 1, 
+    'vol_min': 1, 
     'last_sym': None,
     'last_entry': None,
-    'last_glyph': hourglass_glyph
+    'last_glyph': hourglass_glyph,
+    'nn_scale': 1
 }
+
+
+def norm_scale(val, _min, _max):
+    return (val- _min) / (_max - _min)
+
+
+def norm_descale(scaled_val, _min, _max):
+    return (scaled_val * (_max - _min)) + _min
 
 
 def update_score(userid, val):
@@ -152,14 +169,27 @@ with app.server.app_context():
             dash_data['volumes'].append(record.volume)   
 
         dash_data['latest_feature'] = (
-            dash_data['highs'][-1] / np.max(dash_data['highs']),
-            dash_data['lows'][-1] / np.max(dash_data['lows']),
-            dash_data['volumes'][-1] / np.max(dash_data['volumes'])
+            dash_data['highs'][-1],
+            dash_data['lows'][-1],
+            dash_data['volumes'][-1]
         )
         if len(dash_data['closes']) > 0:
+            dash_data['close_min'] = np.min(dash_data['closes'])
             dash_data['close_max'] = np.max(dash_data['closes'])
+            dash_data['high_min'] = np.min(dash_data['highs']) 
+            dash_data['high_max'] = np.max(dash_data['highs']) 
+            dash_data['low_min'] = np.min(dash_data['lows']) 
+            dash_data['low_max'] = np.max(dash_data['lows']) 
+            dash_data['vol_min'] = np.min(dash_data['volumes']) 
+            dash_data['vol_max'] = np.max(dash_data['volumes']) 
         else:
             dash_data['close_max'] = 1
+            dash_data['high_min'] = 1
+            dash_data['high_max'] = 1
+            dash_data['low_min'] = 1
+            dash_data['low_max'] = 1
+            dash_data['vol_min'] = 1
+            dash_data['vol_max'] = 1
 
         if(Datatype == 'volume'): dash_data['y_current'] = dash_data['volumes']
         elif(Datatype == 'close'): dash_data['y_current'] = dash_data['closes']
@@ -167,6 +197,12 @@ with app.server.app_context():
         elif(Datatype == '_open'): dash_data['y_current'] = dash_data['opens']
         elif(Datatype == 'low'): dash_data['y_current'] = dash_data['lows']
         else: dash_data['y_current'] = lows
+
+        #features = np.array([dash_data['highs'], dash_data['lows'], dash_data['volumes']])
+        #scaler = MinMaxScaler(feature_range=(-1, 1))
+        #f_scaler = scaler.fit(features)
+        #x_scaler = f_scaler.transform(features)
+        #print(x_scaler)
 
     trend_sym_options = GetStockSymbols();
 
@@ -313,16 +349,35 @@ with app.server.app_context():
             # Set plot data                                       
             dash_data['x_pred'].append(X[-1] + datetime.timedelta(seconds=60)) 
             while len(dash_data['x_pred']) > retension: dash_data['x_pred'].pop(0)
+
+            close_min = dash_data['close_min'] 
+            close_max = dash_data['close_max'] 
             for ml_type in dash_data['y_preds'].keys():
                 if ml_type == '_all': continue
                 # Requests latest prediction
                 if ml_type == 'svm':
-                    #post_feature = (dash_data['closes'][-1] / np.max(dash_data['closes']),)
-                    post_feature = (dash_data['closes'][-1] / dash_data['close_max'],)
+                    close_val = dash_data['closes'][-1]
+                    post_feature = (norm_scale(close_val, close_min, close_max),)
+                    scaled_pred = ts_client.get_pred(post_feature, 'rt', ml_type, args[1].lower()).get('ScaledPrediction', 0)
+                    pred = norm_descale(scaled_pred, close_min, close_max)
+                    dash_data['y_preds'][ml_type].append(pred)
                 else:
-                    post_feature = dash_data['latest_feature']
-                pred = ts_client.get_pred(post_feature, 'rt', ml_type, args[1].lower())
-                dash_data['y_preds'][ml_type].append(pred.get('ScaledPrediction', 0) * dash_data['close_max'])
+                    high_val, low_val, vol_val = dash_data['latest_feature']
+                    high_min = dash_data['high_min']
+                    high_max = dash_data['high_max']
+                    low_min = dash_data['low_min'] 
+                    low_max = dash_data['low_max'] 
+                    vol_min = dash_data['vol_min'] 
+                    vol_max = dash_data['vol_max'] 
+                    high_scale = norm_scale(high_val, high_min, high_max)
+                    low_scale = norm_scale(low_val, low_min, low_max)
+                    vol_scale = norm_scale(vol_val, vol_min, vol_max)
+                    post_feature = (high_scale, low_scale, vol_scale)
+                    scaled_pred = ts_client.get_pred(post_feature, 'rt', ml_type, args[1].lower()).get('ScaledPrediction', 0)
+                    pred = norm_descale(scaled_pred, close_min, close_max)
+                    dash_data['y_preds'][ml_type].append(pred)
+
+
                 while len(dash_data['y_preds'][ml_type]) > retension: dash_data['y_preds'][ml_type].pop(0)
 
         if args[0] == 'close':

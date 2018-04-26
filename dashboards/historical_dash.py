@@ -421,6 +421,15 @@ with app.server.app_context():
             project_x.append(dash_data['x_pred'][-1] + datetime.timedelta(days=(x+1)))
             dash_data['y_preds']['projected'].append(pred)
 
+        # Drop junk values
+        x_vals = []
+        y_vals = []
+        for x_val, y_val in zip(project_x, dash_data['y_preds']['projected']):
+                if y_val <= 0: continue
+                x_vals.append(x_val)
+                y_vals.append(y_val)
+        dash_data['y_preds']['projected'] = y_vals
+
         if args[0] == 'close':
             for key in dash_data['y_preds'].keys():
                 if key == 'neur':
@@ -440,7 +449,7 @@ with app.server.app_context():
                     name = 'Combined Prediction'
                     mode = 'markers'
                 elif key == 'projected':
-                    x_plot = project_x
+                    x_plot = x_vals
                     name = 'Projected Prediction'
                     mode = 'line'
                 else:
@@ -515,13 +524,16 @@ with app.server.app_context():
         qh1 = html.H3("Company Prices")
         header = 'Price'
         df = pd.read_sql('''
-        SELECT sym AS "Company", close AS "{}"
+        SELECT stock_price_minute.sym AS "Company", close AS "{}"
         FROM stock_price_minute
-        WHERE dateid IN (
-          SELECT MAX(dateid)
+
+        JOIN (
+          SELECT sym, MAX(dateid) as mdate
           FROM stock_price_minute
-        )
-        ORDER BY dateid DESC, sym ASC
+          GROUP BY sym
+        ) as sub
+          ON stock_price_minute.dateid = sub.mdate AND stock_price_minute.sym = sub.sym
+        ORDER BY dateid DESC, stock_price_minute.sym ASC
         '''.format(header), db.engine)
         df[header] = df[header].apply(money_format)
         sym_table = generate_table(df, 10)

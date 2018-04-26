@@ -532,13 +532,16 @@ with app.server.app_context():
         qh1 = html.H3("Company Prices")
         header = 'Price'
         df = pd.read_sql('''
-        SELECT sym AS "Company", close AS "{}"
-        FROM stock_price_minute
-        WHERE dateid IN (
-          SELECT MAX(dateid)
-          FROM stock_price_minute
-        )
-        ORDER BY dateid DESC, sym ASC
+        SELECT stock_price_minute.sym AS "Company", close AS "{}"                       
+        FROM stock_price_minute                                                         
+                                                                                        
+        JOIN (                                                                          
+          SELECT sym, MAX(dateid) as mdate                                              
+          FROM stock_price_minute                                                       
+          GROUP BY sym                                                                  
+        ) as sub                                                                        
+          ON stock_price_minute.dateid = sub.mdate AND stock_price_minute.sym = sub.sym 
+        ORDER BY dateid DESC, stock_price_minute.sym ASC                                
         '''.format(header), db.engine)
         df[header] = df[header].apply(money_format)
         sym_table = generate_table(df, 10)

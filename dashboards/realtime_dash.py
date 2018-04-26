@@ -31,7 +31,7 @@ import json
 # global CurrentSymbol;
 # global LastCurrentType;
 # global LastCurrentSymbol;
-retension = 1
+retension = 10
 ts_client = PredictionRequest()
 
 
@@ -108,10 +108,6 @@ def money_format(val):
     return '${0:.2f}'.format(round(val, 2))
 
 
-def dt_format(val):
-    return datetime.datetime.strptime(val, '%Y-%m-%d %H:%M')
-
-
 def combine_predictions(predictions, actual):
     '''Weigh each algorithm by percent error.
     
@@ -135,7 +131,6 @@ def combine_predictions(predictions, actual):
     p_errors_inv = np.array(np.absolute(1 - p_errors))
     w_sum = np.sum(p_errors_inv)
     weights = (p_errors_inv / w_sum)
-    print(weights)
     return np.sum(weights * p_vals).tolist()
 
 

@@ -318,7 +318,7 @@ with app.server.app_context():
                 # Requests latest prediction
                 if ml_type == 'svm':
                     #post_feature = (dash_data['closes'][-1] / np.max(dash_data['closes']),)
-                    post_feature = (dash_data['closes'][-1],)
+                    post_feature = (dash_data['closes'][-1] / dash_data['close_max'],)
                 else:
                     post_feature = dash_data['latest_feature']
                 pred = ts_client.get_pred(post_feature, 'rt', ml_type, args[1].lower())
@@ -344,17 +344,16 @@ with app.server.app_context():
                     }
                 })
 
-        x_min = min(data_list[0]['x'])
-        x_max = max(data_list[-1]['x']) + datetime.timedelta(seconds=900)
-
-        ys = [item for data in data_list for item in data['y']]
-        y_min = min(ys) - 1
-        y_max = max(ys) + 1
+        #x_min = min(data_list[0]['x'])
+        #x_max = max(data_list[-1]['x']) + datetime.timedelta(seconds=900)
+        #ys = [item for data in data_list for item in data['y']]
+        #y_min = min(ys) - 1
+        #y_max = max(ys) + 1
         return {
             'data': data_list,
             'layout': go.Layout(
-                xaxis=dict(range=[x_min, x_max]),
-                yaxis=dict(range=[y_min, y_max]),
+                #xaxis=dict(range=[x_min, x_max]),
+                #yaxis=dict(range=[y_min, y_max]),
                 margin=go.Margin(l=50, r=50, b=50, t=50, pad=10)
             )
         }
@@ -381,7 +380,7 @@ with app.server.app_context():
             else:
                 glyph = hourglass_glyph                                                                         
                 dash_data['last_glyph'] = glyph
-        current_score = 'Current Score: {} '.format(get_score(2, 1))                                     
+        current_score = 'Current Score: {} '.format(get_score(1, 1))                                     
         return html.Div([current_score, glyph])                                              
 
     @app.callback(Output('rt-quick-info', 'children'),

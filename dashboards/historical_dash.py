@@ -23,21 +23,17 @@ import pandas as pd
 import plotly.plotly as py
 import plotly.graph_objs as go
 import json
-# from MenuTypeSymbolStore import MenuTypeSymbolStore
 
 
-#based upon  https://www.youtube.com/watch?v=37Zj955LFT0 
-#https://pythonprogramming.net/live-graphs-data-visualization-application-dash-python-tutorial/
-# global CurrentType;
-# global CurrentSymbol;
-# global LastCurrentType;
-# global LastCurrentSymbol;
+# based upon  https://www.youtube.com/watch?v=37Zj955LFT0 
+# https://pythonprogramming.net/live-graphs-data-visualization-application-dash-python-tutorial/
 retension = 10
 ts_client = PredictionRequest()
 
 
 buy_img_url = 'https://proxy.duckduckgo.com/iu/?u=http%3A%2F%2Fwww.jeffbullas.com%2Fwp-content%2Fuploads%2F2009%2F03%2FBuy-now-button.jpg&f=1'
 sell_img_url = 'https://proxy.duckduckgo.com/iu/?u=https%3A%2F%2Fwww.peakprosperity.com%2Fsites%2Fdefault%2Ffiles%2Fcontent%2Farticle%2Fheader-media-background-image%2Fsell-time-228002737.jpg&f=1'
+load_img_url = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRpMoo13mTQR8imvNh-UZyvHsKAlTmng9AWF4w9VLjKS7ahMzSw'
 colors = ('green', 'red', 'orange', 'pink', 'purple')
 key_order = ('bay', 'neur', 'svm', '_all', 'projected')
 
@@ -55,12 +51,16 @@ dash_data = {
     'latest_feature': [],
     'close_max': 1,
     'close_min': 1,
+    'close_mean': 0,
     'high_max': 1, 
     'high_min': 1, 
+    'high_mean': 0,
     'low_max': 1, 
     'low_min': 1, 
+    'low_mean': 0,
     'vol_max': 1, 
     'vol_min': 1, 
+    'vol_mean': 0,
     'last_sym': None,
     'last_entry': None,
     'last_glyph': hourglass_glyph,
@@ -68,12 +68,12 @@ dash_data = {
 }
 
 
-def norm_scale(val, _min, _max):
-    return (val- _min) / (_max - _min)
-
-
-def norm_descale(scaled_val, _min, _max):
-    return (scaled_val * (_max - _min)) + _min
+def norm_scale(val, _mean, _min, _max):                   
+    return (val - _mean) / (_max - _min)                  
+                                                          
+                                                          
+def norm_descale(scaled_val, _mean, _min, _max):          
+    return (scaled_val * (_max - _min)) + _mean           
 
 
 def update_score(userid, val):
@@ -206,22 +206,31 @@ with app.server.app_context():
             dash_data['volumes'][-1]
         )
         if len(dash_data['closes']) > 0:
-            dash_data['close_min'] = np.min(dash_data['closes'])
-            dash_data['close_max'] = np.max(dash_data['closes'])
-            dash_data['high_min'] = np.min(dash_data['highs']) 
-            dash_data['high_max'] = np.max(dash_data['highs']) 
-            dash_data['low_min'] = np.min(dash_data['lows']) 
-            dash_data['low_max'] = np.max(dash_data['lows']) 
-            dash_data['vol_min'] = np.min(dash_data['volumes']) 
-            dash_data['vol_max'] = np.max(dash_data['volumes']) 
+            dash_data['close_min'] = np.min(dash_data['closes'])   
+            dash_data['close_max'] = np.max(dash_data['closes'])   
+            dash_data['close_mean'] = np.mean(dash_data['closes']) 
+            dash_data['high_min'] = np.min(dash_data['highs'])     
+            dash_data['high_max'] = np.max(dash_data['highs'])     
+            dash_data['high_mean'] = np.mean(dash_data['highs'])   
+            dash_data['low_min'] = np.min(dash_data['lows'])       
+            dash_data['low_max'] = np.max(dash_data['lows'])       
+            dash_data['low_mean'] = np.mean(dash_data['lows'])     
+            dash_data['vol_min'] = np.min(dash_data['volumes'])    
+            dash_data['vol_max'] = np.max(dash_data['volumes'])    
+            dash_data['vol_mean'] = np.mean(dash_data['volumes'])  
         else:
-            dash_data['close_max'] = 1
-            dash_data['high_min'] = 1
-            dash_data['high_max'] = 1
-            dash_data['low_min'] = 1
-            dash_data['low_max'] = 1
-            dash_data['vol_min'] = 1
-            dash_data['vol_max'] = 1
+            dash_data['close_max'] = 1  
+            dash_data['close_min'] = 1  
+            dash_data['close_mean'] = 0 
+            dash_data['high_min'] = 1   
+            dash_data['high_max'] = 1   
+            dash_data['high_mean'] = 0  
+            dash_data['low_min'] = 1    
+            dash_data['low_max'] = 1    
+            dash_data['low_mean'] = 0   
+            dash_data['vol_min'] = 1    
+            dash_data['vol_max'] = 1    
+            dash_data['vol_mean'] = 0   
 
         if(Datatype == 'volume'): dash_data['y_current'] = dash_data['volumes']
         elif(Datatype == 'close'): dash_data['y_current'] = dash_data['closes']
@@ -370,37 +379,41 @@ with app.server.app_context():
 
         if len(dash_data['x_pred']) == 0: run_pred = True
         elif X[-1] > dash_data['x_pred'][-1]: run_pred = True
+        close_min = dash_data['close_min']    
+        close_max = dash_data['close_max']    
+        close_mean = dash_data['close_mean']  
         if run_pred:
             # Set plot data                                       
             dash_data['x_pred'].append(X[-1] + datetime.timedelta(days=1)) 
             while len(dash_data['x_pred']) > retension: dash_data['x_pred'].pop(0)
 
-            close_min = dash_data['close_min'] 
-            close_max = dash_data['close_max'] 
             for ml_type in dash_data['y_preds'].keys():
                 if ml_type == '_all': continue
                 # Requests latest prediction
                 if ml_type == 'svm':
                     close_val = dash_data['closes'][-1]
-                    post_feature = (norm_scale(close_val, close_min, close_max),)
+                    post_feature = (norm_scale(close_val, close_mean, close_min, close_max),)
                     scaled_pred = ts_client.get_pred(post_feature, 'hist', ml_type, args[1].lower()).get('ScaledPrediction', 0)
-                    pred = norm_descale(scaled_pred, close_min, close_max)
+                    pred = norm_descale(scaled_pred, close_mean, close_min, close_max)
                     if pred <= 0: continue
                     dash_data['y_preds'][ml_type].append(pred)
                 else:
                     high_val, low_val, vol_val = dash_data['latest_feature']
-                    high_min = dash_data['high_min']
-                    high_max = dash_data['high_max']
-                    low_min = dash_data['low_min'] 
-                    low_max = dash_data['low_max'] 
-                    vol_min = dash_data['vol_min'] 
-                    vol_max = dash_data['vol_max'] 
-                    high_scale = norm_scale(high_val, high_min, high_max)
-                    low_scale = norm_scale(low_val, low_min, low_max)
-                    vol_scale = norm_scale(vol_val, vol_min, vol_max)
+                    high_min = dash_data['high_min']   
+                    high_max = dash_data['high_max']   
+                    high_mean = dash_data['high_mean'] 
+                    low_min = dash_data['low_min']     
+                    low_max = dash_data['low_max']     
+                    low_mean = dash_data['low_mean']   
+                    vol_min = dash_data['vol_min']     
+                    vol_max = dash_data['vol_max']     
+                    vol_mean = dash_data['vol_mean']   
+                    high_scale = norm_scale(high_val, high_mean, high_min, high_max) 
+                    low_scale = norm_scale(low_val, low_mean, low_min, low_max)      
+                    vol_scale = norm_scale(vol_val, vol_mean, vol_min, vol_max)      
                     post_feature = (high_scale, low_scale, vol_scale)
                     scaled_pred = ts_client.get_pred(post_feature, 'hist', ml_type, args[1].lower()).get('ScaledPrediction', 0)
-                    pred = norm_descale(scaled_pred, close_min, close_max)
+                    pred = norm_descale(scaled_pred, close_mean, close_min, close_max)
                     if pred <= 0: continue
                     dash_data['y_preds'][ml_type].append(pred)
 
@@ -408,19 +421,24 @@ with app.server.app_context():
 
         pred_comb_val = combine_predictions(dash_data['y_preds'], dash_data['closes'][-1])
         dash_data['y_preds']['_all'] = [pred_comb_val]
+        str_o = json.dumps({                                                
+            'dateid': [dash_data['x_pred'][-1].strftime('%Y-%m-%d')], 
+            'close': [pred_comb_val]                                        
+        })                                                                  
+        fname = './predictions/hist_{}.json'.format(args[1].lower())          
+        with open(fname, 'w') as f:                                         
+            f.write(str_o)                                                  
 
         project_x = []
         dash_data['projected'] = []
-        close_min = dash_data['close_min']   
-        close_max = dash_data['close_max']   
         for x in range(args[3]):
             if x == 0:
                 close_val = pred_comb_val
             else:
                 close_val = dash_data['y_preds']['projected'][-1]
-            post_feature = (norm_scale(close_val, close_min, close_max),)                                             
+            post_feature = (norm_scale(close_val, close_mean, close_min, close_max),)                                             
             scaled_pred = ts_client.get_pred(post_feature, 'hist', 'svm', args[1].lower()).get('ScaledPrediction', 0) 
-            pred = norm_descale(scaled_pred, close_min, close_max)                                                    
+            pred = norm_descale(scaled_pred, close_mean, close_min, close_max)                                                    
             project_x.append(dash_data['x_pred'][-1] + datetime.timedelta(days=(x+1)))
             dash_data['y_preds']['projected'].append(pred)
 
@@ -614,7 +632,12 @@ with app.server.app_context():
 
         # Buy sell summary
         pred_list = [html.H3("Predicted Value")]
-        if dash_data['y_preds']['_all'][-1] > dash_data['closes'][-1]:
+        if len(dash_data['y_preds']['_all']) <= 0:
+            pred_list.append(html.Img(   
+                src=load_img_url,         
+                style={'height': '50px'} 
+            ))                           
+        elif dash_data['y_preds']['_all'][-1] > dash_data['closes'][-1]:
             pred_list.append(html.Img(
                 src=buy_img_url,
                 style={'height': '50px'}

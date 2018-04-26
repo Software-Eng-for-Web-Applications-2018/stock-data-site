@@ -16,7 +16,7 @@ class JSONView(BaseView):
 
     empty_json = '{"dateid": [], "close": []}'
 
-    valid_pred_types = ('bay', 'neu', 'svm')
+    valid_freqs = ('rt', 'hist')
 
     def is_visible(self):
         return False
@@ -24,9 +24,9 @@ class JSONView(BaseView):
     def valid_passwd(self, passwd):
         return passwd == POST_PASSWD
 
-    def read_file(self, sym, pred_type):
+    def read_file(self, freq, sym):
         try:
-            with open('./predictions/{}_{}.json'.format(sym, pred_type), 'r') as f:
+            with open('./predictions/{}_{}.json'.format(freq, sym), 'r') as f:
                 data = f.read()
             return data
         except Exception as e:
@@ -43,8 +43,8 @@ class JSONView(BaseView):
     def index(self):
         return self.empty_json
 
-    @expose('/<sym>/<pred_type>', methods=('GET', 'POST'))
-    def sym_handle(self, sym, pred_type):
+    @expose('/<freq>/<sym>', methods=('GET', 'POST'))
+    def sym_handle(self, freq, sym):
         # Validate symbol
         sym_results = db.session.query(StockPriceMinute.sym).distinct().all()
         valid_syms = ['test'] + [val.sym.lower() for val in sym_results]
@@ -52,11 +52,9 @@ class JSONView(BaseView):
             print('Invalid symbol, valid symbols are {}'.format(valid_syms))
             return abort(404)
 
-        # Validate symbol
-        if pred_type not in self.valid_pred_types:
-            print('Invalid prediction type, valid prediction types are {}'.format(
-                self.valid_pred_types))
-            return abort(404)
+        if freq not in self.valid_freqs:                                            
+            print('Invalid fequency, valid frequencies are {}'.format(self.valid_freqs)) 
+            return abort(404)                                                
 
         if request.method == 'POST':
             # Read POST request
@@ -79,10 +77,10 @@ class JSONView(BaseView):
                 return abort(400)
 
             # TODO: Overwrite json with posted data
-            fname = sym + '_' + pred_type + '.json'
+            fname = freq + '_' + sym + '.json'
             with open('./predictions/' + fname, 'w') as f:
                 f.write(json.dumps(data))
 
             return '200'
         else:
-            return self.read_file(sym, pred_type)
+            return self.read_file(freq, sym)

@@ -38,7 +38,7 @@ class PredictionRequest(object):
 
     resource = 'inference'
 
-    timeout = 0.4
+    timeout = 1
 
     def get_pred(self, data, freq, ml_type, sym):
         url = '/'.join((self.root_url, self.resource, freq, ml_type, sym))
@@ -49,7 +49,8 @@ class PredictionRequest(object):
                 headers=self.headers,
                 timeout=self.timeout
             )
-        except:
+        except Exception as e:
+            print(e)
             return {}
         if r.status_code != 200:
             return {}

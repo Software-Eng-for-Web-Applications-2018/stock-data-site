@@ -1,5 +1,9 @@
+# written by: John Grun and Kevin Pielacki
+# tested by: John Grun and Kevin Pielacki
+
+
 from app import db
-from collections import deque, OrderedDict
+from collections import (deque, OrderedDict)
 from dash.dependencies import (Input, Output, State, Event)
 from flask_security import (Security, SQLAlchemyUserDatastore, UserMixin,
     RoleMixin, current_user, login_required)
@@ -31,6 +35,10 @@ retension = 100
 ts_client = PredictionRequest()
 
 
+buy_img_url = 'https://proxy.duckduckgo.com/iu/?u=http%3A%2F%2Fwww.jeffbullas.com%2Fwp-content%2Fuploads%2F2009%2F03%2FBuy-now-button.jpg&f=1'
+sell_img_url = 'https://proxy.duckduckgo.com/iu/?u=https%3A%2F%2Fwww.peakprosperity.com%2Fsites%2Fdefault%2Ffiles%2Fcontent%2Farticle%2Fheader-media-background-image%2Fsell-time-228002737.jpg&f=1'
+
+
 dash_data = {
     'x_current': [],
     'y_current': [],
@@ -40,7 +48,7 @@ dash_data = {
     'highs': [],
     'volumes': [],
     'x_pred': [],
-    'y_preds': OrderedDict(neur=[], svm=[], _all=[]),
+    'y_preds': OrderedDict(neur=[], svm=[], bay=[], _all=[], projected=[]),
     'latest_feature': [],
     'close_max': 1,
     'close_min': 1,
@@ -90,7 +98,6 @@ def get_score(userid, val):
     return vals[0]
 
 
-
 def get_latest_data(sym):
     result = StockPriceMinute.query.filter_by(sym=sym) \
                                    .order_by(StockPriceMinute.dateid).first()
@@ -103,6 +110,30 @@ def money_format(val):
 
 def dt_format(val):
     return datetime.datetime.strptime(val, '%Y-%m-%d %H:%M')
+
+
+def combine_predictions(predictions, actual):
+    '''Weigh each algorithm by percent error.
+    
+    args:
+        predictions (dict): Machine learning algorithm with value pair.
+            ml_type: values
+        actual (float): Latest actual value to weigh against.
+    returns:
+        float: Weight prediction value
+    '''
+    p_errors = []
+    p_vals = []
+    for key in predictions.keys():
+        val = predictions[key]
+        if len(val) <= 0: continue
+        else: val = val[-1]
+        p_errors.append(np.absolute((actual - val) / actual))
+        p_vals.append(val)
+    p_errors = np.array(p_errors)
+    w_sum = np.sum(p_errors)
+    weights = p_errors / w_sum
+    return np.sum(weights * p_vals).tolist()
 
 
 with app.server.app_context():
@@ -230,6 +261,11 @@ with app.server.app_context():
         ('Last Month', '142715'),
         ('All Time', 'all'),
     )
+    trend_projection_options = (
+        ('10', 10),
+        ('25', 25),
+        ('50', 50)
+    )
     layout = html.Div([
         html.Div([
             dcc.Interval(id='graph-update', interval=10000),
@@ -253,6 +289,12 @@ with app.server.app_context():
                              for label, value in trend_sym_options],
                     value=trend_sym_options[0][1]
                 ),
+                dcc.Dropdown(                                        
+                    id='rt-trend-projection-dropdown',                      
+                    options=[{'label': label, 'value': value}        
+                             for label, value in trend_projection_options], 
+                    value=trend_projection_options[0][1]                    
+                ),                                                   
                 dcc.Graph(
                     id='rt-stock-trend-graph',animate=True,
                     style={
@@ -295,7 +337,8 @@ with app.server.app_context():
     @app.callback(Output("rt-stock-trend-graph", "figure"),
                   [Input('rt-trend-type-dropdown', 'value'),
                    Input('rt-trend-sym-dropdown', 'value'),
-                   Input('rt-trend-count-dropdown', 'value')],
+                   Input('rt-trend-count-dropdown', 'value'),
+                   Input('rt-trend-projection-dropdown', 'value')],
                   events=[Event('graph-update', 'interval')])
     def update_trend(*args):
         try:
@@ -377,38 +420,68 @@ with app.server.app_context():
                     pred = norm_descale(scaled_pred, close_min, close_max)
                     dash_data['y_preds'][ml_type].append(pred)
 
-
                 while len(dash_data['y_preds'][ml_type]) > retension: dash_data['y_preds'][ml_type].pop(0)
+
+        pred_comb_val = combine_predictions(dash_data['y_preds'], dash_data['closes'][-1])
+        dash_data['y_preds']['_all'] = [pred_comb_val]
+
+        project_x = []
+        dash_data['projected'] = []
+        close_min = dash_data['close_min']   
+        close_max = dash_data['close_max']   
+        for x in range(args[3]):
+            if x == 0:
+                close_val = pred_comb_val
+            else:
+                close_val = dash_data['y_preds']['projected'][-1]
+            post_feature = (norm_scale(close_val, close_min, close_max),)                                             
+            scaled_pred = ts_client.get_pred(post_feature, 'rt', 'svm', args[1].lower()).get('ScaledPrediction', 0) 
+            pred = norm_descale(scaled_pred, close_min, close_max)                                                    
+            project_x.append(dash_data['x_pred'][-1] + datetime.timedelta(seconds=60*(x+1))) 
+            dash_data['y_preds']['projected'].append(pred)
 
         if args[0] == 'close':
             for key in dash_data['y_preds'].keys():
-                if key == 'neur': name = 'Neural Prediction'
-                elif key == 'svm': name = 'SVM Prediction'
-                elif key == 'bay': name = 'Bayesian Prediction'
-                elif key == '_all': name = 'Combined Prediction'
-                else: name = 'Unknown Prediction'
+                if key == 'neur':
+                    x_plot = dash_data['x_pred']
+                    name = 'Neural Prediction'
+                    mode = 'markers'
+                elif key == 'svm':
+                    x_plot = dash_data['x_pred']
+                    name = 'SVM Prediction'
+                    mode = 'markers'
+                elif key == 'bay':
+                    x_plot = dash_data['x_pred']
+                    name = 'Bayesian Prediction'
+                    mode = 'markers'
+                elif key == '_all':
+                    x_plot = dash_data['x_pred']
+                    name = 'Combined Prediction'
+                    mode = 'markers'
+                elif key == 'projected':
+                    x_plot = project_x
+                    name = 'Projected Prediction'
+                    mode = 'line'
+                else:
+                    x_plot = dash_data['x_pred']
+                    name = 'Unknown Prediction'
+                    mode = 'markers'
 
                 data_list.append({
-                    'x': dash_data['x_pred'],
+                    'x': x_plot,
                     'y': dash_data['y_preds'][key],
                     'name': name,
-                    'mode': 'markers',
+                    'mode': mode,
                     'marker': {
                         'size': 10,
                         'line': {'width': 2}
                     }
                 })
 
-        #x_min = min(data_list[0]['x'])
-        #x_max = max(data_list[-1]['x']) + datetime.timedelta(seconds=900)
-        #ys = [item for data in data_list for item in data['y']]
-        #y_min = min(ys) - 1
-        #y_max = max(ys) + 1
         return {
             'data': data_list,
             'layout': go.Layout(
-                #xaxis=dict(range=[x_min, x_max]),
-                #yaxis=dict(range=[y_min, y_max]),
+                autosize=True,
                 margin=go.Margin(l=50, r=50, b=50, t=50, pad=10)
             )
         }
@@ -538,9 +611,23 @@ with app.server.app_context():
         if len(dash_data['y_preds']['_all']) <= 0:
             display_val = 'Loading...'
         else:
-            display_val = '${0:.2f}'.format(dash_data['y_preds']['_all'][-1])
+            display_val = '  ${0:.2f}'.format(dash_data['y_preds']['_all'][-1])
+            display_val = '  ${0:.2f}'.format(dash_data['y_preds']['_all'][-1])
 
-        pred_data = html.Div([html.H3("Predicted Value"), display_val])
+        # Buy sell summary
+        pred_list = [html.H3("Predicted Value")]
+        if dash_data['y_preds']['_all'][-1] > dash_data['closes'][-1]:
+            pred_list.append(html.Img(
+                src=buy_img_url,
+                style={'height': '50px'}
+            ))
+        else:
+            pred_list.append(html.Img(
+                src=sell_img_url,
+                style={'height': '50px'}
+            ))
+        pred_list.append(display_val)
+        pred_data = html.Div(pred_list)
 
         return [pred_data, qh1, sym_table, qh2, max_table, qh3, avg_table, qh4,
                 low_table, qh5, avglow_table]

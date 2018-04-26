@@ -31,7 +31,7 @@ import json
 # global CurrentSymbol;
 # global LastCurrentType;
 # global LastCurrentSymbol;
-retension = 100
+retension = 1
 ts_client = PredictionRequest()
 
 
@@ -125,14 +125,17 @@ def combine_predictions(predictions, actual):
     p_errors = []
     p_vals = []
     for key in predictions.keys():
+        if key not in ('bay', 'neur', 'sv'): continue
         val = predictions[key]
         if len(val) <= 0: continue
         else: val = val[-1]
         p_errors.append(np.absolute((actual - val) / actual))
         p_vals.append(val)
     p_errors = np.array(p_errors)
-    w_sum = np.sum(p_errors)
-    weights = p_errors / w_sum
+    p_errors_inv = np.array(np.absolute(1 - p_errors))
+    w_sum = np.sum(p_errors_inv)
+    weights = (p_errors_inv / w_sum)
+    print(weights)
     return np.sum(weights * p_vals).tolist()
 
 

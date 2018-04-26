@@ -7,6 +7,7 @@ from collections import (deque, OrderedDict)
 from dash.dependencies import (Input, Output, State, Event)
 from flask_security import (Security, SQLAlchemyUserDatastore, UserMixin,
     RoleMixin, current_user, login_required)
+from itertools import cycle
 from models import StockPriceMinute
 from plotly import graph_objs as go
 from plotly.graph_objs import *
@@ -37,6 +38,8 @@ ts_client = PredictionRequest()
 
 buy_img_url = 'https://proxy.duckduckgo.com/iu/?u=http%3A%2F%2Fwww.jeffbullas.com%2Fwp-content%2Fuploads%2F2009%2F03%2FBuy-now-button.jpg&f=1'
 sell_img_url = 'https://proxy.duckduckgo.com/iu/?u=https%3A%2F%2Fwww.peakprosperity.com%2Fsites%2Fdefault%2Ffiles%2Fcontent%2Farticle%2Fheader-media-background-image%2Fsell-time-228002737.jpg&f=1'
+colors = ('green', 'red', 'orange', 'pink', 'purple')
+key_order = ('bay', 'neur', 'svm', '_all', 'projected')
 
 
 dash_data = {
@@ -438,8 +441,9 @@ with app.server.app_context():
             project_x.append(dash_data['x_pred'][-1] + datetime.timedelta(seconds=60*(x+1))) 
             dash_data['y_preds']['projected'].append(pred)
 
+        color_cycle = cycle(colors)
         if args[0] == 'close':
-            for key in dash_data['y_preds'].keys():
+            for key, color in zip(key_order, color_cycle):
                 if key == 'neur':
                     x_plot = dash_data['x_pred']
                     name = 'Neural Prediction'
@@ -472,7 +476,8 @@ with app.server.app_context():
                     'mode': mode,
                     'marker': {
                         'size': 10,
-                        'line': {'width': 2}
+                        'line': {'width': 2},
+                        'color': color
                     }
                 })
 

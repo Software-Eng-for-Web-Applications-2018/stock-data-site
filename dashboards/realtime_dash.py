@@ -27,18 +27,25 @@ import json
 # global LastCurrentType;
 # global LastCurrentSymbol;
 retension = 100
-x_current = []
-y_current = []
-latest_feature = []
-x_pred = []
-y_preds = OrderedDict(neur=[], svm=[], _all=[])
-close_max = 1
-last_sym = None
-last_entry = None
-last_glyph = hourglass_glyph
-
-
 ts_client = PredictionRequest()
+
+
+dash_data = {
+    'x_current': [],
+    'y_current': [],
+    'closes': [],
+    'opens': [],
+    'lows': [],
+    'highs': [],
+    'volumes': [],
+    'x_pred': [],
+    'y_preds': OrderedDict(neur=[], svm=[], _all=[]),
+    'latest_feature': [],
+    'close_max': 1,
+    'last_sym': None,
+    'last_entry': None,
+    'last_glyph': hourglass_glyph
+}
 
 
 def update_score(userid, val):
@@ -90,7 +97,6 @@ with app.server.app_context():
         ('Low', 'low'),
         ('Volume', 'volume')
     )
-    # TODO: Query from available options
     def GetStockSymbols():
         # pull the stock infor from the database --- HIGHLY inefficient way to do this but, very easy to write and I don't have time to go into depth with flask-sql. 
         StockInfoObjectList = StockPriceMinute.query.all(); # change Query!!!!  Need distant or return unique values.
@@ -101,7 +107,6 @@ with app.server.app_context():
         for StockInfoObject in StockInfoObjectList:
             StockSymOrderedSet.add(StockInfoObject.sym);
 
-        #print(StockSymOrderedSet);
         # just get it in the correct format
         StockSymlist = [];
         for StockSymbol in StockSymOrderedSet:
@@ -111,69 +116,57 @@ with app.server.app_context():
         StockSymlist.sort(key=lambda x: x[0])
         return tuple(StockSymlist)
 
-
-    # if update is false all the records will be pulled. if update is true then only the last few elements will be pulled. 
-    def GetStockDataBySymbol(Datatype,Symbol,update):
+    def GetStockDataBySymbol(Datatype, Symbol, update):
+        '''Fill dash_data variable with proper data.'''
+        global dash_data
 
         if update:
-            StockInfoObjectList = StockPriceMinute.query.filter_by(sym=Symbol).first();  # probably could chain filters together
+            StockInfoObjectList = StockPriceMinute.query.filter_by(sym=Symbol).first()
+        elif dash_data['last_sym'] == Symbol:
+            # query for only new data
+            if len(dash_data['x_current']) > 0:
+                max_date = dash_data['x_current'][-1]
+            else:
+                max_date = datetime.date(2015, 1, 1)
+            StockInfoObjectList = StockPriceMinute.query \
+                                                  .filter(StockPriceMinute.dateid > max_date) \
+                                                  .filter_by(sym=Symbol)
         else:
-            StockInfoObjectList = StockPriceMinute.query.filter_by(sym=Symbol);  # probably could chain filters together
-        # print(StockInfoObjectList[0]);
-        # print(StockInfoObjectList[0].dateid);
-        # print(StockInfoObjectList[0].volume);
-        closes = []
-        opens = []
-        lows = []
-        highs = []
-        volumes = []
+            # Reset values if for new symbol
+            dash_data['x_current'] = []      
+            dash_data['y_current'] = []      
+            dash_data['closes'] = []
+            dash_data['opens'] = []
+            dash_data['lows'] = []
+            dash_data['highs'] = []
+            dash_data['volumes'] = []
+            StockInfoObjectList = StockPriceMinute.query.filter_by(sym=Symbol)
+        dash_data['latest_feature'] = [] 
 
-        Dates = [];
-        Data = [];
-        global x_current
-        global y_current
-        global latest_feature
-        global close_max
-        x_current = []
-        y_current = []
-        latest_feature = []
+        for record in StockInfoObjectList:
+            dash_data['x_current'].append(record.dateid) 
+            dash_data['closes'].append(record.close)     
+            dash_data['opens'].append(record._open)      
+            dash_data['lows'].append(record.low)         
+            dash_data['highs'].append(record.high)       
+            dash_data['volumes'].append(record.volume)   
 
-        # Get records
-        if update:
-            Dates.append(StockInfoObjectList.dateid)
-            closes.append(StockINfoObjectList.close)   
-            opens.append(StockINfoObjectList._open)     
-            lows.append(StockINfoObjectList.low)       
-            highs.append(StockINfoObjectList.high)     
-            volumes.append(StockINfoObjectList.volume) 
+        dash_data['latest_feature'] = (
+            dash_data['highs'][-1] / np.max(dash_data['highs']),
+            dash_data['lows'][-1] / np.max(dash_data['lows']),
+            dash_data['volumes'][-1] / np.max(dash_data['volumes'])
+        )
+        if len(dash_data['closes']) > 0:
+            dash_data['close_max'] = np.max(dash_data['closes'])
         else:
-            for Record in StockInfoObjectList:
-                Dates.append(Record.dateid)
-                closes.append(Record.close)
-                opens.append(Record._open)
-                lows.append(Record.low)
-                highs.append(Record.high)
-                volumes.append(Record.volume)
+            dash_data['close_max'] = 1
 
-        x_current.append(Dates[-1])
-        y_current.append(closes[-1])
-        latest_feature = (highs[-1] / np.max(highs), lows[-1] / np.max(lows), volumes[-1] / np.max(volumes))
-        close_max = np.max(closes)
-        if(Datatype == 'volume'):
-            Data = volumes
-        elif(Datatype == 'close'):
-            Data = closes
-        elif(Datatype == 'high'):
-            Data = highs
-        elif(Datatype == '_open'):
-            Data = opens
-        elif(Datatype == 'low'):
-            Data = lows
-        else:
-            print("Bad selection")
-            Data = []
-
-        return (Dates, Data);
+        if(Datatype == 'volume'): dash_data['y_current'] = dash_data['volumes']
+        elif(Datatype == 'close'): dash_data['y_current'] = dash_data['closes']
+        elif(Datatype == 'high'): dash_data['y_current'] = dash_data['highs']
+        elif(Datatype == '_open'): dash_data['y_current'] = dash_data['opens']
+        elif(Datatype == 'low'): dash_data['y_current'] = dash_data['lows']
+        else: dash_data['y_current'] = lows
 
     trend_sym_options = GetStockSymbols();
 
@@ -183,18 +176,19 @@ with app.server.app_context():
 
     CurrentSymbol = trend_sym_options[0][1];
     LastCurrentSymbol =  CurrentSymbol; 
-    InitValues = GetStockDataBySymbol(CurrentType,CurrentSymbol,False);
+    GetStockDataBySymbol(CurrentType, CurrentSymbol, False);
 
     #Need an inital populate function 
-    X=deque(maxlen=len(InitValues[0]))
-    Y=deque(maxlen=len(InitValues[1]))
+    X=deque(maxlen=len(dash_data['x_current']))
+    Y=deque(maxlen=len(dash_data['y_current']))
 
     #populate the init values 
-    X.extend(InitValues[0])
-    Y.extend(InitValues[1])
+    X.extend(dash_data['x_current'])
+    Y.extend(dash_data['y_current'])
 
     trend_count_options = (
         ('Last Hour', '60'),
+        ('Today', 'today'),
         ('Last Day', '391'),
         ('Last Week', '2730'),
         ('Last Month', '142715'),
@@ -260,96 +254,79 @@ with app.server.app_context():
         ], className="container")
     ], style={'padding-bottom': '20px'})
 
-
-    # @app.callback(Output('intermediate-value', 'children'),[Input('rt-trend-type-dropdown', 'value'),Input('rt-trend-sym-dropdown', 'value')])  #,Event('graph-update','interval')])
-
-    # def update_Menu(*args):
-    #     #('type','sym')
-    #     # MenuTypeSymbolStore.SetType(self,args[0]);
-    #     # MenuTypeSymbolStore.SetSymbol(self,args[1]);
-    #     print("Update_Menu Called");
-    #     #CurrentType=args[0];
-    #     #CurrentSymbol= args[1];
-
-    #     #print("Current Type is :" + CurrentType);
-    #     #print("Current Symbol is :" + CurrentSymbol);
-
-    #     return args.to_json();
-
     #This is really what they suggest 
     #https://dash.plot.ly/sharing-data-between-callbacks
     @app.callback(Output("rt-stock-trend-graph", "figure"),
                   [Input('rt-trend-type-dropdown', 'value'),
                    Input('rt-trend-sym-dropdown', 'value'),
                    Input('rt-trend-count-dropdown', 'value')],
-                  events=[Event('graph-update', 'interval')]) #,Event('graph-update','interval')])
+                  events=[Event('graph-update', 'interval')])
     def update_trend(*args):
-        #('type','sym')
-        print(args);
-
         try:
-
-            # if((CurrentType == LastCurrentType) and (CurrentSymbol == LastCurrentSymbol)): # same data, just extend 
-            #     TrendData = GetStockDataBySymbol(CurrentType,CurrentSymbol,True);
-            #     if(X[-1] != TrendData[0]): # check that we are not adding the same date to the end of the graph 
-            #         X.extend(TrendData[0]);
-            #         Y.extend(TrendData[1]);
-            # else:
-            X.clear();
-            Y.clear();
-            TrendData = GetStockDataBySymbol(args[0],args[1],False); # New data 
-            X.extend(TrendData[0])
-            Y.extend(TrendData[1])
-            #LastCurrentType = CurrentType;
-            #LastCurrentSymbol =  CurrentSymbol; 
-
+            X.clear()
+            Y.clear()
+            GetStockDataBySymbol(args[0], args[1], False)
+            X.extend(dash_data['x_current'])
+            Y.extend(dash_data['y_current'])
         except Exception as e:
             # Debug print and return data not found message
             print(e.message)
             return "Stock Data Not Found"
 
         data_list = []
-        if args[2] != 'all':
+        if args[2] == 'today':                                          
+            # UTC to est
+            dt_today = (datetime.datetime.today() - datetime.timedelta(seconds=14400)).replace(hour=0)
+            n = len([date for date in list(X) if date > dt_today])
+            idx = max((len(X) - n, 0))
+            data_list.append({                                            
+                'x': list(X)[idx:],                                       
+                'y': list(Y)[idx:],                                       
+                'name': 'Actual'                                          
+            })                                                            
+        elif args[2] != 'all':
             try:
                 n = int(args[2])
             except ValueError:
                 n = 1440
-            idx = len(X) - n
-            if idx > 0:
-                data_list.append({'x': list(X)[idx:], 'y': list(Y)[idx:], 'name': 'Actual'})
-            else:
-                data_list.append({'x': list(X)[idx:], 'y': list(Y)[idx:], 'name': 'Actual'})
+            idx = max((len(X) - n, 0))
+            data_list.append({
+                'x': list(X)[idx:],
+                'y': list(Y)[idx:],
+                'name': 'Actual'
+            })
         else:
             data_list.append({'x': list(X), 'y': list(Y), 'name': 'Actual'})
 
         # Add predictions if close is plotted
-        global latest_feature 
-        global last_sym
-        global x_pred
-        global y_preds
 
         run_pred = False
         # Reset plot for new syms
-        if last_sym != args[1]:
-            last_sym = args[1]
-            x_pred = []
-            for key in y_preds.keys(): y_preds[key] = []
+        if dash_data['last_sym'] != args[1]:
+            dash_data['last_sym'] = args[1]
+            dash_data['x_pred'] = []
+            for key in dash_data['y_preds'].keys(): dash_data['y_preds'][key] = []
 
-        if len(x_pred) == 0: run_pred = True
-        elif X[-1] > x_pred[-1]: run_pred = True
+        if len(dash_data['x_pred']) == 0: run_pred = True
+        elif X[-1] > dash_data['x_pred'][-1]: run_pred = True
         if run_pred:
             # Set plot data                                       
-            x_pred.append(X[-1] + datetime.timedelta(seconds=60)) 
-            while len(x_pred) > retension: x_pred.pop(0)
-            for ml_type in y_preds.keys():
+            dash_data['x_pred'].append(X[-1] + datetime.timedelta(seconds=60)) 
+            while len(dash_data['x_pred']) > retension: dash_data['x_pred'].pop(0)
+            for ml_type in dash_data['y_preds'].keys():
                 if ml_type == '_all': continue
                 # Requests latest prediction
-                pred = ts_client.get_pred(latest_feature, 'rt', ml_type, args[1].lower())
-                y_preds[ml_type].append(pred.get('ScaledPrediction', 0) * close_max)
-                while len(y_preds[ml_type]) > retension: y_preds[ml_type].pop(0)
+                if ml_type == 'svm':
+                    #post_feature = (dash_data['closes'][-1] / np.max(dash_data['closes']),)
+                    post_feature = (dash_data['closes'][-1],)
+                else:
+                    post_feature = dash_data['latest_feature']
+                pred = ts_client.get_pred(post_feature, 'rt', ml_type, args[1].lower())
+                dash_data['y_preds'][ml_type].append(pred.get('ScaledPrediction', 0) * dash_data['close_max'])
+                while len(dash_data['y_preds'][ml_type]) > retension: dash_data['y_preds'][ml_type].pop(0)
 
         if args[0] == 'close':
-            for key in y_preds.keys():
+            for key in dash_data['y_preds'].keys():
                 if key == 'neur': name = 'Neural Prediction'
                 elif key == 'svm': name = 'SVM Prediction'
                 elif key == 'bay': name = 'Bayesian Prediction'
@@ -357,8 +334,8 @@ with app.server.app_context():
                 else: name = 'Unknown Prediction'
 
                 data_list.append({
-                    'x': x_pred,
-                    'y': y_preds[key],
+                    'x': dash_data['x_pred'],
+                    'y': dash_data['y_preds'][key],
                     'name': name,
                     'mode': 'markers',
                     'marker': {
@@ -370,8 +347,9 @@ with app.server.app_context():
         x_min = min(data_list[0]['x'])
         x_max = max(data_list[-1]['x']) + datetime.timedelta(seconds=900)
 
-        y_min = min(data_list[0]['y'] + data_list[-1]['y']) - 1
-        y_max = max(data_list[0]['y'] + data_list[-1]['y']) + 1
+        ys = [item for data in data_list for item in data['y']]
+        y_min = min(ys) - 1
+        y_max = max(ys) + 1
         return {
             'data': data_list,
             'layout': go.Layout(
@@ -385,25 +363,24 @@ with app.server.app_context():
                   [Input('rt-guess-slider', 'value')],
                   events=[Event('graph-update', 'interval')])
     def score_update(guess):                                                                 
-        global last_entry
-        global last_glyph
-        glyph = last_glyph
-        if last_entry is None:                                                                          
-            last_entry = y_current[-1]                                                                  
-        elif last_entry != y_current[-1]:                                                               
-            diff = y_current[-1] - last_entry                                                           
-            last_entry = y_current[-1]                                                                  
+        global dash_data
+        glyph = dash_data['last_glyph']
+        if dash_data['last_entry'] is None:                                                                          
+            dash_data['last_entry'] = dash_data['y_current'][-1]                                                                  
+        elif dash_data['last_entry'] != dash_data['y_current'][-1]:                                                               
+            diff = dash_data['y_current'][-1] - dash_data['last_entry']
+            dash_data['last_entry'] = dash_data['y_current'][-1]                                                                  
             if (guess == 2 and diff > 0) or (guess == 0 and diff < 0):
                 update_score(1, 1)                                                                      
                 glyph = plus_glyph                                                                      
-                last_glyph = glyph
-            elif (guess == 1 and diff < 0) or (guess == 0 and diff > 0):    
+                dash_data['last_glyph'] = glyph
+            elif (guess == 2 and diff < 0) or (guess == 0 and diff > 0):    
                 update_score(1, -1)                                                                      
                 glyph = minus_glyph                                                                     
-                last_glyph = glyph
+                dash_data['last_glyph'] = glyph
             else:
                 glyph = hourglass_glyph                                                                         
-                last_glyph = glyph
+                dash_data['last_glyph'] = glyph
         current_score = 'Current Score: {} '.format(get_score(2, 1))                                     
         return html.Div([current_score, glyph])                                              
 
@@ -504,12 +481,12 @@ with app.server.app_context():
         df[header] = df[header].apply(money_format)
         avglow_table = generate_table(df, 100)
 
-        if len(y_preds['_all']) <= 0:
+        if len(dash_data['y_preds']['_all']) <= 0:
             display_val = 'Loading...'
         else:
-            display_val = '${0:.2f}'.format(y_preds['_all'][-1])
+            display_val = '${0:.2f}'.format(dash_data['y_preds']['_all'][-1])
 
         pred_data = html.Div([html.H3("Predicted Value"), display_val])
 
-        return [pred_data, qh1, sym_table, qh2, max_table, qh3,
-                avg_table, qh4, low_table, qh5, avglow_table]
+        return [pred_data, qh1, sym_table, qh2, max_table, qh3, avg_table, qh4,
+                low_table, qh5, avglow_table]

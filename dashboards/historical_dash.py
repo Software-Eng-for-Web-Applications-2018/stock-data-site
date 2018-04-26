@@ -258,7 +258,7 @@ with app.server.app_context():
     )
     layout = html.Div([
         html.Div([
-            dcc.Interval(id='graph-update', interval=1000000),
+            dcc.Interval(id='graph-update', interval=10000),
             html.H1('Historical Prediction Portal'),
             html.Div([
                 dcc.Dropdown(                                         
